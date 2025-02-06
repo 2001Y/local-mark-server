@@ -9,14 +9,31 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "next": "15.1.6"
+    "@blocknote/core": "^0.23.1",
+    "@blocknote/mantine": "^0.23.1",
+    "@blocknote/react": "^0.23.1",
+    "@emotion/react": "^11.14.0",
+    "@iconify/react": "^5.2.0",
+    "@mantine/core": "^7.16.2",
+    "@mantine/hooks": "^7.16.2",
+    "@types/lodash": "^4.17.15",
+    "lodash": "^4.17.21",
+    "next": "15.1.6",
+    "partykit": "^0.0.111",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "sanitize-filename-ts": "^1.0.2",
+    "sonner": "^1.7.4",
+    "yaml-front-matter": "^4.1.1"
   },
   "devDependencies": {
     "typescript": "^5",
     "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19"
-  }
+    "@types/react": "^18",
+    "@types/react-dom": "^18"
+  },
+  "trustedDependencies": [
+    "@blocknote/core",
+    "@blocknote/react"
+  ]
 }
