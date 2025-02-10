@@ -1,28 +1,17 @@
 "use client";
 
-import {
-  createContext,
-  useContext,
-  useState,
-  useCallback,
-  useEffect,
-} from "react";
+import { createContext, useContext, useState, useEffect } from "react";
 import { useSelectedLayoutSegments } from "next/navigation";
 import { FileNode } from "../types/file";
-import {
-  isDefaultPath,
-  normalizePath,
-  generateTreeState,
-} from "../lib/pathUtils";
 
 interface TreeContextType {
   initialTree: FileNode[];
   updateTree: () => Promise<FileNode[]>;
-  basePath: string;
-  setBasePath: (path: string) => void;
-  currentPath: string;
-  setCurrentPath: (path: string) => void;
   isRoot: boolean;
+  basePath: string;
+  currentPath: string;
+  setBasePath: (path: string) => void;
+  setCurrentPath: (path: string) => void;
 }
 
 const TreeContext = createContext<TreeContextType | null>(null);
@@ -39,33 +28,13 @@ export function TreeProvider({
   updateTree,
 }: TreeProviderProps) {
   const segments = useSelectedLayoutSegments();
-  const [basePath, setBasePath] = useState(
-    process.env.NEXT_PUBLIC_DEFAULT_MD_PATH + "/"
-  );
-  const [currentPath, setCurrentPath] = useState(
-    process.env.NEXT_PUBLIC_DEFAULT_MD_PATH + "/"
-  );
   const [isRoot, setIsRoot] = useState(true);
+  const [basePath, setBasePath] = useState("");
+  const [currentPath, setCurrentPath] = useState("");
 
   // パスが変更されたときにisRootを更新
   useEffect(() => {
-    setIsRoot(isDefaultPath(currentPath));
-  }, [currentPath]);
-
-  // URLセグメントが変更されたときにパスを更新
-  useEffect(() => {
-    if (segments.length > 0) {
-      const fullPath = "/" + segments.join("/");
-      const normalizedPath = normalizePath(fullPath);
-      const { basePath: newBasePath, currentPath: newCurrentPath } =
-        generateTreeState(normalizedPath);
-
-      setBasePath(newBasePath);
-      setCurrentPath(newCurrentPath);
-    } else {
-      setBasePath(process.env.NEXT_PUBLIC_DEFAULT_MD_PATH + "/");
-      setCurrentPath(process.env.NEXT_PUBLIC_DEFAULT_MD_PATH + "/");
-    }
+    setIsRoot(segments.length === 0);
   }, [segments]);
 
   return (
@@ -73,11 +42,11 @@ export function TreeProvider({
       value={{
         initialTree,
         updateTree,
-        basePath,
-        setBasePath,
-        currentPath,
-        setCurrentPath,
         isRoot,
+        basePath,
+        currentPath,
+        setBasePath,
+        setCurrentPath,
       }}
     >
       {children}

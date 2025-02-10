@@ -14,12 +14,12 @@ interface SidebarProps {
 }
 
 export function Sidebar({ tree, onFileSelect, onUpdateTree }: SidebarProps) {
-  const { basePath } = useTree();
+  const { currentPath, isRoot } = useTree();
 
   return (
     <div className="sidebar">
       <div className="sidebar-header">
-        <h2>Localmark</h2>
+        <h2>LocalMark</h2>
         <button
           className="new-file-button"
           onClick={() => window.dispatchEvent(new CustomEvent("newFile"))}
@@ -27,11 +27,7 @@ export function Sidebar({ tree, onFileSelect, onUpdateTree }: SidebarProps) {
           <span>+ New</span>
         </button>
       </div>
-      <SearchTrigger
-        isRoot={!basePath}
-        folderPath={basePath || process.env.NEXT_PUBLIC_DEFAULT_MD_PATH!}
-        className="desktop-search"
-      />
+      <SearchTrigger folderPath={currentPath} className="desktop-search" />
       <Link href="/" className="nav-item">
         <span className="nav-icon">🏠</span>
         <span className="nav-text">ホーム</span>

@@ -36,7 +36,7 @@ interface ClientPageProps {
 
 export function ClientPage({ initialTree, updateTree }: ClientPageProps) {
   const router = useRouter();
-  const { basePath, setBasePath, currentPath, setCurrentPath } = useTree();
+  const { currentPath, setCurrentPath } = useTree();
 
   const handleNewFile = useCallback(
     async (initialContent?: string, askName: boolean = false) => {
@@ -103,7 +103,6 @@ export function ClientPage({ initialTree, updateTree }: ClientPageProps) {
         handleNewFile();
       },
       createFolder: async (event: CreateFolderEvent) => {
-        console.log("[ClientPage] Create folder event:", event.detail);
         const { parentPath } = event.detail;
         const folderName = window.prompt("フォルダ名を入力してください");
         if (!folderName) return;
@@ -115,13 +114,10 @@ export function ClientPage({ initialTree, updateTree }: ClientPageProps) {
           const normalizedPath = newFolderPath.endsWith("/")
             ? newFolderPath
             : newFolderPath + "/";
-          setBasePath(normalizedPath);
-          setCurrentPath("");
 
-          // パスの先頭のスラッシュを削除
-          const cleanPath = normalizedPath.replace(/^\/+/, "");
-          // パスをエンコード
-          const encodedPath = cleanPath
+          setCurrentPath(normalizedPath);
+          const encodedPath = normalizedPath
+            .replace(/^\/+/, "")
             .split("/")
             .map((segment) => encodeURIComponent(segment))
             .join("/");
@@ -155,7 +151,7 @@ export function ClientPage({ initialTree, updateTree }: ClientPageProps) {
         window.removeEventListener(event, handler as EventListener);
       });
     };
-  }, [handleNewFile, router, setBasePath, setCurrentPath]);
+  }, [handleNewFile, router, setCurrentPath]);
 
   return (
     <div className="container">
@@ -163,7 +159,9 @@ export function ClientPage({ initialTree, updateTree }: ClientPageProps) {
       <main className="main">
         <div className="split-view">
           <FolderPage
-            folderPath={basePath || process.env.NEXT_PUBLIC_DEFAULT_MD_PATH!}
+            folderPath={
+              currentPath || process.env.NEXT_PUBLIC_DEFAULT_MD_PATH || ""
+            }
             tree={initialTree}
             onUpdateTree={updateTree}
           />
@@ -172,13 +170,15 @@ export function ClientPage({ initialTree, updateTree }: ClientPageProps) {
       <style jsx>{`
         .main {
           flex: 1;
-          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
         }
 
         .split-view {
           width: 100%;
           height: 100%;
-          overflow: hidden;
+          overflow: auto;
         }
 
         .quickmemo-page {

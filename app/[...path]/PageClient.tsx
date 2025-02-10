@@ -21,9 +21,13 @@ export function PageClient({
     useTree();
 
   useEffect(() => {
+    if (!path) return;
+
     const normalizedPath = normalizePath(path);
     const { basePath: newBasePath, currentPath: newCurrentPath } =
       generateTreeState(normalizedPath);
+
+    setBasePath(newBasePath);
     setCurrentPath(newCurrentPath);
   }, [path, setBasePath, setCurrentPath]);
 

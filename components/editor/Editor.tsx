@@ -3,12 +3,14 @@
 import { BlockNoteEditor } from "@/components/editor/BlockNoteEditor";
 import { useCallback } from "react";
 import { toast } from "sonner";
+import { Block } from "@blocknote/core";
 
 export interface EditorProps {
   initialContent?: string;
   onSave: (content: string) => void;
   autoSave?: boolean;
   filePath?: string;
+  blocks?: Block[];
 }
 
 export default function Editor({
@@ -16,6 +18,7 @@ export default function Editor({
   onSave,
   autoSave = false,
   filePath,
+  blocks,
 }: EditorProps) {
   const handleSave = useCallback(
     async (newContent: string) => {
@@ -35,6 +38,7 @@ export default function Editor({
       onSave={handleSave}
       autoSave={autoSave}
       filePath={filePath}
+      initialBlocks={blocks}
     />
   );
 }

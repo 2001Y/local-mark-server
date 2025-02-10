@@ -1,0 +1,285 @@
+/* --------------------------------------------------
+   details のデフォルト三角非表示
+-------------------------------------------------- */
+.details-summary :global(summary) {
+  list-style: none;
+  cursor: pointer;
+}
+.details-summary :global(summary::-webkit-details-marker) {
+  display: none;
+}
+
+/* --------------------------------------------------
+     item-content (ファイル&フォルダ共通)
+  -------------------------------------------------- */
+.item-content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 6px;
+  background: transparent;
+  transition: background-color 0.2s ease;
+  border: 1px solid #eaeaea;
+  position: relative;
+  user-select: none;
+
+  /* スクロールレイアウト用 */
+  &.layout-scroll {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+
+    .item-top {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+  }
+
+  /* 展開式レイアウトの場合、トグルアイコンの左にメニュートリガーを配置 */
+  .toggle-icon {
+    margin-left: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+
+    :global(.menu-trigger) {
+      order: -1; /* トグルアイコンの左側に配置 */
+    }
+
+    .toggle-icon-content {
+      font-size: 1.2rem;
+      line-height: 1;
+      color: #666;
+    }
+  }
+}
+.item-content:hover {
+  background-color: #f5f5f5;
+}
+.item-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  width: 1.5rem;
+  text-align: center;
+}
+.item-details {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.item-name {
+  font-size: 0.95rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.item-date {
+  font-size: 0.8rem;
+  color: #666;
+}
+
+/* --------------------------------------------------
+     ディレクトリセクション
+  -------------------------------------------------- */
+.directory-section {
+  margin-bottom: 2rem;
+  border-radius: 8px;
+}
+
+/* セクションヘッダー */
+.section-header {
+  padding: 1rem 0;
+}
+.section-header h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: #333;
+}
+
+/* --------------------------------------------------
+     タイトル折りたたみ
+  -------------------------------------------------- */
+.section-title {
+  padding: 1rem 0;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+.section-title:hover {
+  background-color: #f0f0f0;
+}
+.title-wrapper {
+  display: flex;
+  /* align-items: center; */
+  width: 100%;
+}
+.title-wrapper h2 {
+  font-size: 1rem;
+  color: #333;
+}
+
+/* --------------------------------------------------
+     フォルダリスト
+  -------------------------------------------------- */
+.folders-list {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+/* grid → 幅50% x 2カラムなど好きな指定に */
+.folders-list.grid {
+  display: grid;
+  grid-template-columns: 50% 50%;
+  gap: 0.75rem;
+  overflow: visible;
+  padding-bottom: 0;
+}
+
+/* scroll → 横スクロール + 子要素幅固定 */
+.folders-list.scroll {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  margin-left: -0.75em;
+  margin-right: -0.75em;
+  padding-left: 0.75em;
+  padding-right: 0.75em;
+}
+/* フォルダアイテムは幅300pxに固定(要件に応じて変更) */
+.folders-list.scroll > * {
+  width: 230px;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+/* collapse → 上下に並べる + detailsで囲み、線で囲む */
+.folders-list.collapse-open,
+.folders-list.collapse-close {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.folders-list.collapse-open > details,
+.folders-list.collapse-close > details {
+  border: 1px solid #eaeaea;
+  border-radius: 6px;
+  margin-bottom: 0.75rem;
+}
+.folders-list.collapse-open > details > summary {
+  border-bottom: 1px solid #eaeaea;
+}
+
+.folders-list.collapse-open > details > summary > .item-content,
+.folders-list.collapse-close > details > summary > .item-content {
+  border: none;
+}
+.section-content.list {
+  border: 1px solid #eaeaea;
+  border-radius: 6px;
+  .collapse-close,
+  .grid {
+    gap: 0;
+    margin-bottom: 0;
+  }
+  details {
+    margin-bottom: 0;
+    border: none;
+    border-radius: 0;
+    border-bottom: 1px solid #eaeaea;
+  }
+  .files-list {
+    .item-content {
+      border: none;
+      border-radius: 0;
+      border-bottom: 1px solid #eaeaea;
+    }
+  }
+  .folder-content {
+    background-color: #f6f6f6;
+    .item-content {
+      background-color: #fff;
+    }
+  }
+}
+
+/* --------------------------------------------------
+     フォルダitem (collapse以外)
+  -------------------------------------------------- */
+.folder-item {
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.2s ease;
+}
+.folder-item:hover {
+  border-color: #ccc;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+.folder-header {
+  cursor: pointer;
+  border-radius: 6px 6px 0 0;
+  transition: background-color 0.2s ease;
+  /* background: #f8f9fa;
+  border-bottom: 1px solid #eaeaea; */
+}
+.folder-header:hover {
+  background-color: #f0f0f0;
+}
+.folder-content {
+  padding: 0.75rem;
+}
+
+/* --------------------------------------------------
+     ファイルリスト
+  -------------------------------------------------- */
+.files-list {
+  display: flex;
+  gap: 0.5rem;
+}
+.files-list.scroll {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  margin: 0 -0.75rem;
+  padding: 0 0.75rem;
+}
+.files-list.scroll > * {
+  width: 150px;
+  flex-shrink: 0;
+}
+.files-list.scroll .item-content {
+  flex-direction: column;
+  align-items: flex-start;
+  overflow: hidden;
+}
+.files-list.grid {
+  display: grid; /* flexを上書き */
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.5rem;
+}
+
+/* --------------------------------------------------
+     折りたたみアイコン
+  -------------------------------------------------- */
+.toggle-icon {
+  margin-left: 0.5rem;
+  font-size: 0.8rem;
+  color: #666;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* --------------------------------------------------
+     レスポンシブ(例)
+  -------------------------------------------------- */
+@media (max-width: 768px) {
+  .folders-list.grid {
+    grid-template-columns: 1fr;
+  }
+  .files-list.grid {
+    grid-template-columns: 1fr;
+  }
+}

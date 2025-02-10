@@ -3,8 +3,8 @@ export interface FileInfo {
   path: string;
   isDirectory: boolean;
   size?: number;
-  lastModified?: Date;
-  mtime?: Date; // Used in FileList component
+  lastModified?: string;
+  mtime?: string; // Used in FileList component
 }
 
 export interface PageInfo {
@@ -18,4 +18,5 @@ export interface FileNode {
   type: "file" | "directory";
   path?: string;
   children?: FileNode[];
+  mtime?: string; // 最終更新日時
 }

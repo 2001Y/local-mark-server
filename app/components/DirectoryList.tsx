@@ -1,195 +1,354 @@
-import React from "react";
+import React, { useCallback } from "react";
 import Link from "next/link";
-import { FileInfo, FileNode } from "../types/file";
-import path from "path";
+import { FileNode } from "../types/file";
 import { generateUrl } from "../lib/pathUtils";
+import styles from "./DirectoryList.module.scss";
+import { MenuTrigger } from "./MenuTrigger";
+import { useContextMenu } from "../context/ContextMenuContext";
 
-// 日付フォーマット用のヘルパー関数
-function formatDate(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}/${month}/${day}`;
-}
+function ItemContent({
+  icon,
+  name,
+  date,
+  rightIcon,
+  node,
+  layout = "default",
+}: {
+  icon: string;
+  name: string;
+  date?: string;
+  rightIcon?: string;
+  node?: FileNode;
+  layout?: "default" | "grid" | "scroll" | "collapse-open" | "collapse-close";
+}) {
+  const { openMenu } = useContextMenu();
 
-interface DirectoryListProps {
-  title: string;
-  files: FileInfo[];
-  folders?: FileNode[];
-  emptyMessage?: string;
-  layout?: "scroll" | "grid";
-}
-
-export function DirectoryList({
-  title,
-  files,
-  folders = [],
-  emptyMessage = "ファイルがありません",
-  layout = "scroll",
-}: DirectoryListProps) {
-  const hasContent = files.length > 0 || folders.length > 0;
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!node?.path) return;
+      openMenu({ x: e.clientX, y: e.clientY }, node.path, node.type, node);
+    },
+    [node, openMenu]
+  );
 
   return (
-    <div className="directory-section">
-      <h2>{title}</h2>
-      {folders.length > 0 && (
-        <div className="folders-list">
-          {folders.map((folder) => (
-            <Link
-              key={folder.path}
-              href={generateUrl(folder.path!)}
-              className="folder-item"
-            >
-              <span className="folder-icon">📁</span>
-              <span className="folder-name">{path.basename(folder.path!)}</span>
-            </Link>
-          ))}
-        </div>
-      )}
-      {files.length > 0 ? (
-        <div className={`files-list ${layout}`}>
-          {files.map((file) => (
-            <Link
-              key={file.path}
-              href={generateUrl(file.path)}
-              className="file-item"
-            >
-              <div className="file-content">
-                <span className="file-icon">📄</span>
-                <span className="file-name">{path.basename(file.path)}</span>
-                <span className="file-date">
-                  {file.lastModified ? formatDate(file.lastModified) : ""}
+    <div
+      className={`${styles["item-content"]} ${styles[`layout-${layout}`]}`}
+      onContextMenu={handleContextMenu}
+    >
+      {layout === "scroll" ? (
+        <>
+          <div className={styles["item-top"]}>
+            <span className={styles["item-icon"]}>{icon}</span>
+            {node?.path && (
+              <MenuTrigger path={node.path} type={node.type} node={node} />
+            )}
+          </div>
+          <div className={styles["item-details"]}>
+            <span className={styles["item-name"]}>{name}</span>
+            {date && <span className={styles["item-date"]}>{date}</span>}
+          </div>
+        </>
+      ) : (
+        <>
+          {rightIcon ? (
+            <>
+              <span className={styles["item-icon"]}>{icon}</span>
+              <div className={styles["item-details"]}>
+                <span className={styles["item-name"]}>{name}</span>
+                {date && <span className={styles["item-date"]}>{date}</span>}
+              </div>
+              <div className={styles["toggle-icon"]}>
+                {node?.path && (
+                  <MenuTrigger path={node.path} type={node.type} node={node} />
+                )}
+                <span className={styles["toggle-icon-content"]}>
+                  {rightIcon === "▶" ? "▸" : "▾"}
                 </span>
               </div>
-            </Link>
-          ))}
-        </div>
-      ) : (
-        !folders.length && <div className="empty-message">{emptyMessage}</div>
+            </>
+          ) : (
+            <>
+              <span className={styles["item-icon"]}>{icon}</span>
+              <div className={styles["item-details"]}>
+                <span className={styles["item-name"]}>{name}</span>
+                {date && <span className={styles["item-date"]}>{date}</span>}
+              </div>
+              {node?.path && (
+                <MenuTrigger path={node.path} type={node.type} node={node} />
+              )}
+            </>
+          )}
+        </>
       )}
-      <style jsx>{`
-        .directory-section {
-          margin-bottom: 2rem;
-        }
+    </div>
+  );
+}
 
-        h2 {
-          font-size: 1.2rem;
-          color: #333;
-          margin-bottom: 1rem;
-        }
+function FileList({
+  files,
+  filesLayout,
+  showEmptyFolder,
+}: {
+  files: FileNode[];
+  filesLayout: "scroll" | "grid";
+  showEmptyFolder?: boolean;
+}) {
+  if (files.length === 0 && !showEmptyFolder) return null;
 
-        .folders-list {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-          gap: 0.75rem;
-          margin-bottom: 1.5rem;
-        }
+  return (
+    <div className={`${styles["files-list"]} ${styles[filesLayout]}`}>
+      {files.map((file) => (
+        <Link
+          key={file.path ?? file.name}
+          href={generateUrl(file.path!)}
+          className="file-item"
+          onClick={(e) => {
+            if ((e.target as HTMLElement).closest(".menu-trigger")) {
+              e.preventDefault();
+            }
+          }}
+        >
+          <ItemContent
+            icon="📄"
+            name={file.name}
+            date={
+              file.mtime
+                ? new Date(file.mtime).toLocaleDateString("ja-JP")
+                : undefined
+            }
+            node={file}
+            layout={filesLayout}
+          />
+        </Link>
+      ))}
+    </div>
+  );
+}
 
-        :global(.folder-item) {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0.75rem;
-          border-radius: 4px;
-          border: 1px solid #eaeaea;
-          text-decoration: none;
-          color: inherit;
-          transition: all 0.2s;
-        }
+/** サブフォルダ用の設定 */
+interface SubFolderConfig {
+  foldersLayout:
+    | "scroll"
+    | "grid"
+    | "collapse-open"
+    | "collapse-close"
+    | "false";
+  filesLayout: "scroll" | "grid";
+  showEmptyFolder: boolean;
+}
 
-        :global(.folder-item:hover) {
-          background-color: #f5f5f5;
-          border-color: #ddd;
-          transform: translateY(-1px);
-        }
+function FolderItem({
+  folder,
+  foldersLayout,
+  filesLayout,
+  showEmptyFolder,
+  subFolder,
+  level = 0,
+}: {
+  folder: FileNode;
+  foldersLayout:
+    | "scroll"
+    | "grid"
+    | "collapse-open"
+    | "collapse-close"
+    | "false";
+  filesLayout: "scroll" | "grid";
+  showEmptyFolder?: boolean;
+  subFolder?: Partial<SubFolderConfig>;
+  level?: number;
+}) {
+  const directories = folder.children?.filter((c) => c.type === "directory");
+  const files = folder.children?.filter((c) => c.type === "file");
 
-        .folder-name {
-          flex: 1;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-          font-size: 0.95rem;
-        }
+  const hasContent = (directories?.length || 0) + (files?.length || 0) > 0;
+  if (!hasContent && !showEmptyFolder) {
+    return null;
+  }
 
-        .folder-icon {
-          font-size: 1.1rem;
-          flex-shrink: 0;
-        }
+  const childFoldersLayout = subFolder?.foldersLayout ?? foldersLayout;
+  const childFilesLayout = subFolder?.filesLayout ?? filesLayout;
+  const childShowEmpty = subFolder?.showEmptyFolder ?? showEmptyFolder;
 
-        .files-list {
-          display: flex;
-          gap: 0.75rem;
-        }
+  if (foldersLayout === "false") {
+    return null;
+  }
 
-        .files-list.scroll {
-          overflow-x: auto;
-          padding-bottom: 0.5rem;
-          -webkit-overflow-scrolling: touch;
-          scrollbar-width: thin;
-          scrollbar-color: #ddd transparent;
-        }
+  if (foldersLayout === "collapse-open" || foldersLayout === "collapse-close") {
+    return (
+      <details
+        open={foldersLayout === "collapse-open"}
+        className={styles["details-summary"]}
+      >
+        <summary className={styles["folder-header"]}>
+          <ItemContent
+            icon="📁"
+            name={folder.name}
+            rightIcon="▶"
+            node={folder}
+            layout={foldersLayout}
+          />
+        </summary>
+        <div className={styles["folder-content"]}>
+          <FoldersList
+            folders={directories ?? []}
+            foldersLayout={childFoldersLayout}
+            filesLayout={childFilesLayout}
+            showEmptyFolder={childShowEmpty}
+            subFolder={subFolder}
+            level={level + 1}
+          />
+          <FileList
+            files={files ?? []}
+            filesLayout={childFilesLayout}
+            showEmptyFolder={childShowEmpty}
+          />
+        </div>
+      </details>
+    );
+  }
 
-        .files-list.grid {
-          flex-wrap: wrap;
-          gap: 0.75rem;
-        }
-
-        :global(.file-item) {
-          flex: 0 0 auto;
-          width: 200px;
-          text-decoration: none;
-          color: inherit;
-        }
-
-        .files-list.grid :global(.file-item) {
-          width: calc(50% - 0.375rem);
-        }
-
-        .file-content {
-          padding: 0.75rem;
-          border: 1px solid #eaeaea;
-          border-radius: 4px;
-          transition: all 0.2s;
-        }
-
-        :global(.file-item:hover) .file-content {
-          background-color: #f5f5f5;
-          border-color: #ddd;
-          transform: translateY(-1px);
-        }
-
-        .file-name {
-          display: block;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-          margin: 0.25rem 0;
-        }
-
-        .file-date {
-          display: block;
-          font-size: 0.8rem;
-          color: #666;
-        }
-
-        .empty-message {
-          text-align: center;
-          color: #666;
-          padding: 1rem;
-          background: #f5f5f5;
-          border-radius: 4px;
-        }
-
-        @media (max-width: 768px) {
-          .folders-list {
-            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  return (
+    <div className={`${styles["folder-item"]}`}>
+      <Link
+        href={generateUrl(folder.path!)}
+        className={styles["folder-link"]}
+        onClick={(e) => {
+          if ((e.target as HTMLElement).closest(".menu-trigger")) {
+            e.preventDefault();
           }
+        }}
+      >
+        <ItemContent
+          icon="📁"
+          name={folder.name}
+          node={folder}
+          layout={foldersLayout === "grid" ? "grid" : "default"}
+        />
+      </Link>
+    </div>
+  );
+}
 
-          .files-list.grid :global(.file-item) {
-            width: 100%;
-          }
-        }
-      `}</style>
+function FoldersList({
+  folders,
+  foldersLayout,
+  filesLayout,
+  showEmptyFolder,
+  subFolder,
+  level = 0,
+}: {
+  folders: FileNode[];
+  foldersLayout:
+    | "scroll"
+    | "grid"
+    | "collapse-open"
+    | "collapse-close"
+    | "false";
+  filesLayout: "scroll" | "grid";
+  showEmptyFolder?: boolean;
+  subFolder?: Partial<SubFolderConfig>;
+  level?: number;
+}) {
+  if (!folders || folders.length === 0) {
+    return null;
+  }
+
+  const folderItems = folders.map((folder) => (
+    <FolderItem
+      key={folder.path ?? folder.name}
+      folder={folder}
+      foldersLayout={foldersLayout}
+      filesLayout={filesLayout}
+      showEmptyFolder={showEmptyFolder}
+      subFolder={subFolder}
+      level={level}
+    />
+  ));
+
+  const className = `${styles["folders-list"]} ${styles[foldersLayout]}`;
+
+  return <div className={className}>{folderItems}</div>;
+}
+
+/** DirectoryList Props */
+interface DirectoryListProps {
+  title: string;
+  tree: {
+    folders: FileNode[];
+    files: FileNode[];
+  };
+  filesLayout?: "scroll" | "grid";
+  foldersLayout?:
+    | "scroll"
+    | "grid"
+    | "collapse-open"
+    | "collapse-close"
+    | "false";
+  showEmptyFolder?: boolean;
+  titleCollapse?: boolean;
+  sectionLayout?: "list" | false;
+  subFolder?: Partial<SubFolderConfig>;
+}
+
+/** ディレクトリ全体を表示するコンポーネント */
+export function DirectoryList({
+  title,
+  tree,
+  filesLayout = "scroll",
+  foldersLayout = "scroll",
+  showEmptyFolder = true,
+  titleCollapse = false,
+  sectionLayout = false,
+  subFolder = {},
+}: DirectoryListProps) {
+  const folderContent = (
+    <>
+      <FoldersList
+        folders={tree.folders}
+        foldersLayout={foldersLayout}
+        filesLayout={filesLayout}
+        showEmptyFolder={showEmptyFolder}
+        subFolder={subFolder}
+      />
+      <FileList
+        files={tree.files}
+        filesLayout={filesLayout}
+        showEmptyFolder={showEmptyFolder}
+      />
+    </>
+  );
+
+  if (!titleCollapse) {
+    return (
+      <div className={styles["directory-section"]}>
+        <div className={styles["section-header"]}>
+          <h2>{title}</h2>
+        </div>
+        {folderContent}
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles["directory-section"]}>
+      <details open className={styles["details-summary"]}>
+        <summary className={styles["section-title"]}>
+          <div className={styles["title-wrapper"]}>
+            <h2>{title}</h2>
+            <span className={styles["toggle-icon"]}>▾</span>
+          </div>
+        </summary>
+        <div
+          className={`${styles["section-content"]} ${
+            sectionLayout === "list" ? styles["list"] : ""
+          }`}
+        >
+          {folderContent}
+        </div>
+      </details>
     </div>
   );
 }

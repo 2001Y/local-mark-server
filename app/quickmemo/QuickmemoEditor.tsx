@@ -11,15 +11,19 @@ import { useFileActions } from "@/app/actions/client";
 export function QuickmemoEditor() {
   const { navigateToFile } = useAppPath();
   const { handleNewFile } = useFileActions();
-  const [content, setContent] = useState<string>(
-    typeof window !== "undefined"
-      ? localStorage.getItem("unsaved_content") || ""
-      : ""
-  );
+  const [content, setContent] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    return localStorage.getItem("unsaved_content") || "";
+  });
 
   const handleSave = useCallback((newContent: string) => {
-    localStorage.setItem("unsaved_content", newContent);
-    setContent(newContent);
+    try {
+      localStorage.setItem("unsaved_content", newContent);
+      setContent(newContent);
+    } catch (error) {
+      console.error("Failed to save content:", error);
+      toast.error("Failed to save changes");
+    }
   }, []);
 
   const handleSaveToFile = useCallback(async () => {

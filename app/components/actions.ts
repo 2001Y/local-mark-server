@@ -215,7 +215,7 @@ export async function getRecentFiles(
           name: entry.name,
           isDirectory: false,
           size: stats.size,
-          lastModified: stats.mtime,
+          lastModified: stats.mtime.toISOString(),
         });
       }
 
@@ -232,7 +232,9 @@ export async function getRecentFiles(
 
     // 更新日時でソート
     recentFiles.sort(
-      (a, b) => b.lastModified!.getTime() - a.lastModified!.getTime()
+      (a, b) =>
+        new Date(b.lastModified!).getTime() -
+        new Date(a.lastModified!).getTime()
     );
 
     return { success: true, files: recentFiles };

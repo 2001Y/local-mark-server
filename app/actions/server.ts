@@ -5,7 +5,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { OperationResult } from "../types/errors";
 import { FileInfo, FileNode } from "../types/file";
-import { normalizePath } from "../lib/pathUtils";
+import { normalizePath, toFsPath } from "../lib/pathUtils";
 
 const checkItemExists = async (itemPath: string): Promise<boolean> => {
   try {
@@ -26,11 +26,25 @@ export async function getFileContent(
   filePath: string
 ): Promise<ActionResult<string>> {
   try {
-    const normalizedPath = normalizePath(filePath);
-    const absolutePath = normalizedPath.startsWith("/")
-      ? normalizedPath
-      : `/${normalizedPath}`;
-    const content = await fs.readFile(absolutePath, "utf-8");
+    const fsPath = toFsPath(filePath);
+
+    // ファイルの存在確認
+    try {
+      const stats = await fs.stat(fsPath);
+      if (stats.isDirectory()) {
+        return {
+          success: false,
+          error: `指定されたパスはディレクトリです: ${filePath}`,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: `ファイルが存在しません: ${filePath}`,
+      };
+    }
+
+    const content = await fs.readFile(fsPath, "utf-8");
     return { success: true, data: content };
   } catch (error) {
     console.error("Error reading file:", error);
@@ -46,11 +60,8 @@ export async function saveFile(
   content: string
 ): Promise<ActionResult> {
   try {
-    const normalizedPath = normalizePath(filePath);
-    const absolutePath = normalizedPath.startsWith("/")
-      ? normalizedPath
-      : `/${normalizedPath}`;
-    await fs.writeFile(absolutePath, content, "utf-8");
+    const fsPath = toFsPath(filePath);
+    await fs.writeFile(fsPath, content, "utf-8");
     revalidatePath("/[...path]", "page");
     revalidateTag("files");
     return { success: true };

@@ -5,7 +5,10 @@ const nextConfig = {
     NEXT_PUBLIC_DEFAULT_MD_PATH: process.env.NEXT_PUBLIC_DEFAULT_MD_PATH,
   },
   experimental: {
-    serverActions: true,
+    serverActions: {
+      allowedOrigins: ["*"],
+      bodySizeLimit: "2mb",
+    },
   },
   trailingSlash: false,
   pageExtensions: ["ts", "tsx", "js", "jsx"],
@@ -43,6 +46,11 @@ const nextConfig = {
         ],
       },
     ];
+  },
+  pwa: {
+    dest: "public",
+    register: true,
+    skipWaiting: true,
   },
 };
 

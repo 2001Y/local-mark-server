@@ -1,22 +1,19 @@
 import { Suspense } from "react";
-import { unstable_noStore as noStore } from "next/cache";
-import { getFileContent } from "../actions/server";
-import { FolderPage } from "../components/FolderPage";
-import { FileEditor } from "./FileEditor";
 import { getPathType } from "../lib/pathUtils";
 import { PageClient } from "./PageClient";
 
 interface PageProps {
-  params: {
+  params: Promise<{
     path: string[];
-  };
+  }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
-export default async function Page({ params }: PageProps) {
-  noStore();
-
-  // paramsを非同期で扱う
-  const resolvedParams = await Promise.resolve(params);
+export default async function Page({ params, searchParams }: PageProps) {
+  const [resolvedParams, resolvedSearchParams] = await Promise.all([
+    params,
+    searchParams,
+  ]);
   const pathSegments = resolvedParams.path;
   const pathType = getPathType(pathSegments);
   const fullPath = "/" + pathSegments.join("/");

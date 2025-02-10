@@ -5,63 +5,19 @@ import { getRecentFiles } from "./actions";
 import path from "path";
 import { FileInfo, FileNode } from "../types/file";
 import { FileList } from "./FileList";
-import { isDefaultPath, cleanPathForComparison } from "../lib/pathUtils";
+import { getUserNameFromPath } from "../lib/pathUtils";
 import React from "react";
 import { Icon } from "@iconify/react";
 import { SearchTrigger } from "./SearchTrigger";
 import { DirectoryList } from "./DirectoryList";
-import { useTree } from "@/app/context/TreeContext";
 import { useRouter } from "next/navigation";
-
-interface FolderPageProps {
-  folderPath: string;
-}
+import { DirectoryListDemo } from "./DirectoryListDemo";
 
 interface DirectoryContent {
   folders: FileNode[];
   files: FileNode[];
   folderContents: { folder: FileNode; files: FileNode[] }[];
 }
-
-// FileNodeをFileInfoに変換する関数
-const convertToFileInfo = (node: FileNode): FileInfo => {
-  return {
-    path: node.path!,
-    name: path.basename(node.path!),
-    isDirectory: node.type === "directory",
-    // ここでは仮の値を設定。実際のファイルサイズと更新日時は別途取得する必要があります
-    size: 0,
-    lastModified: new Date(),
-  };
-};
-
-// ヘッダーコンポーネントをメモ化
-const Header = React.memo(
-  ({
-    folderPath,
-    isRoot,
-    userName,
-  }: {
-    folderPath: string;
-    isRoot: boolean;
-    userName: string;
-  }) => (
-    <div className="folder-header">
-      <h1>
-        {isRoot ? (
-          <>Hello, {userName}</>
-        ) : (
-          <>
-            <span className="folder-icon">📁</span>
-            {path.basename(folderPath)}
-          </>
-        )}
-      </h1>
-      <p className="folder-path">{folderPath}</p>
-    </div>
-  )
-);
-Header.displayName = "Header";
 
 // FileListセクションをメモ化
 const FolderFilesSection = React.memo(
@@ -86,98 +42,159 @@ const FolderFilesSection = React.memo(
 );
 FolderFilesSection.displayName = "FolderFilesSection";
 
-export function FolderPage({ folderPath }: FolderPageProps) {
-  const { initialTree, updateTree } = useTree();
+// ディレクトリの内容を取得する関数
+function getDirectoryContent(
+  tree: FileNode[],
+  segments: string[]
+): DirectoryContent {
+  if (!tree || tree.length === 0) {
+    console.log("Empty tree received");
+    return { folders: [], files: [], folderContents: [] };
+  }
+
+  console.log("Initial tree:", tree);
+  console.log("Segments:", segments);
+
+  // ルートディレクトリの場合は、treeをそのまま使用
+  if (segments.length === 0) {
+    console.log("Processing root directory");
+    const folders = tree.filter((node) => node.type === "directory");
+    const files = tree.filter((node) => node.type === "file");
+    const folderContents = folders.map((folder) => {
+      const folderFiles =
+        folder.children?.filter((child) => child.type === "file") || [];
+      const subFolders =
+        folder.children?.filter((child) => child.type === "directory") || [];
+      return {
+        folder: {
+          ...folder,
+          children: subFolders,
+        },
+        files: folderFiles,
+      };
+    });
+    return { folders, files, folderContents };
+  }
+
+  // サブディレクトリの場合は、パスに従ってノードを探索
+  let currentNode: FileNode | undefined = tree.find(
+    (node) => node.type === "directory" && node.name === "notes"
+  );
+
+  if (!currentNode) {
+    console.log("Notes directory not found");
+    return { folders: [], files: [], folderContents: [] };
+  }
+
+  // notesディレクトリ以降のパスを取得
+  const notesIndex = segments.indexOf("notes");
+  const targetSegments = notesIndex >= 0 ? segments.slice(notesIndex + 1) : [];
+  console.log("Target segments:", targetSegments);
+
+  // パスを順番に辿る
+  for (const segment of targetSegments) {
+    if (!currentNode?.children) {
+      console.log("No children found for currentNode");
+      break;
+    }
+    const nextNode: FileNode | undefined = currentNode.children.find((node) => {
+      const basename = path.basename(node.path || "");
+      console.log("Comparing:", { segment, basename, nodePath: node.path });
+      return node.type === "directory" && basename === segment;
+    });
+    if (!nextNode) {
+      console.log("No matching node found for segment:", segment);
+      break;
+    }
+    currentNode = nextNode;
+    console.log("Found directory:", nextNode.name);
+  }
+
+  if (!currentNode) {
+    console.log("Target directory not found");
+    return { folders: [], files: [], folderContents: [] };
+  }
+
+  console.log("Found target directory:", currentNode);
+
+  // 現在のディレクトリ直下のフォルダとファイルを取得
+  const folders =
+    currentNode.children?.filter((node) => node.type === "directory") || [];
+  const files =
+    currentNode.children?.filter((node) => node.type === "file") || [];
+
+  console.log("Found folders:", folders);
+  console.log("Found files:", files);
+
+  // フォルダの内容を取得（サブフォルダがある場合のみ）
+  const folderContents =
+    folders.length > 0
+      ? folders.map((folder) => {
+          const folderFiles =
+            folder.children?.filter((child) => child.type === "file") || [];
+          const subFolders =
+            folder.children?.filter((child) => child.type === "directory") ||
+            [];
+          return {
+            folder: {
+              ...folder,
+              children: subFolders,
+            },
+            files: folderFiles,
+          };
+        })
+      : [];
+
+  console.log("Generated folderContents:", folderContents);
+
+  return { folders, files, folderContents };
+}
+
+interface FolderPageProps {
+  folderPath: string;
+  tree: FileNode[];
+  onUpdateTree: () => Promise<FileNode[]>;
+}
+
+export function FolderPage({
+  folderPath,
+  tree,
+  onUpdateTree,
+}: FolderPageProps) {
   const router = useRouter();
   const [recentFiles, setRecentFiles] = useState<FileInfo[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isMobile, setIsMobile] = useState(false);
+  const userName = getUserNameFromPath(folderPath);
+  const defaultPath = process.env.NEXT_PUBLIC_DEFAULT_MD_PATH || "/content";
+  const isRoot = folderPath === defaultPath || folderPath === "/";
+  const currentPath = folderPath;
 
-  const isRoot = folderPath === process.env.NEXT_PUBLIC_DEFAULT_MD_PATH + "/";
-  const userName = process.env.NEXT_PUBLIC_USER_NAME || "User";
+  // folderPathからセグメントを取得
+  const segments = useMemo(() => {
+    if (isRoot) return [];
+    // デフォルトパスより後ろの部分を取得
+    const relativePath = folderPath
+      .replace(defaultPath, "")
+      .replace(/^\/+/, "");
+    return relativePath.split("/").filter(Boolean);
+  }, [folderPath, defaultPath, isRoot]);
 
   // 現在のディレクトリの内容を取得
   const currentDirContent = useMemo(() => {
-    if (!initialTree) return { folders: [], files: [], folderContents: [] };
-
-    const findContent = (
-      nodes: FileNode[],
-      targetPath: string
-    ): {
-      folders: FileNode[];
-      files: FileNode[];
-      folderContents: { folder: FileNode; files: FileNode[] }[];
-    } => {
-      const cleanTargetPath = cleanPathForComparison(targetPath);
-
-      // デフォルトパスの場合はルートのコンテンツを返す
-      if (isDefaultPath(cleanTargetPath)) {
-        const folders = nodes.filter((node) => node.type === "directory");
-        return {
-          folders,
-          files: nodes.filter((node) => node.type === "file"),
-          folderContents: folders.map((folder) => ({
-            folder,
-            files:
-              folder.children?.filter((child) => child.type === "file") || [],
-          })),
-        };
-      }
-
-      // 対象のディレクトリを探す
-      for (const node of nodes) {
-        if (!node.path) continue;
-        const cleanNodePath = cleanPathForComparison(node.path);
-
-        if (cleanNodePath === cleanTargetPath && node.type === "directory") {
-          const folders =
-            node.children?.filter((child) => child.type === "directory") || [];
-          return {
-            folders,
-            files:
-              node.children?.filter((child) => child.type === "file") || [],
-            folderContents: folders.map((folder) => ({
-              folder,
-              files:
-                folder.children?.filter((child) => child.type === "file") || [],
-            })),
-          };
-        }
-        if (node.children) {
-          const result = findContent(node.children, targetPath);
-          if (result.folders.length > 0 || result.files.length > 0) {
-            return result;
-          }
-        }
-      }
-      return { folders: [], files: [], folderContents: [] };
-    };
-
-    return findContent(initialTree, folderPath);
-  }, [initialTree, folderPath]);
-
-  // メディアクエリの監視を追加
-  useEffect(() => {
-    const mediaQuery = window.matchMedia("(max-width: 768px)");
-    setIsMobile(mediaQuery.matches);
-
-    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-    mediaQuery.addEventListener("change", handler);
-    return () => mediaQuery.removeEventListener("change", handler);
-  }, []);
+    if (!tree) return { folders: [], files: [], folderContents: [] };
+    console.log("Using segments:", segments);
+    return getDirectoryContent(tree, segments);
+  }, [tree, segments]);
 
   useEffect(() => {
     const loadRecentFiles = async () => {
-      setIsLoading(true);
-      const result = await getRecentFiles(folderPath);
+      const result = await getRecentFiles(currentPath);
       if (result.success && result.files) {
         setRecentFiles(result.files);
       }
-      setIsLoading(false);
     };
 
     loadRecentFiles();
-  }, [folderPath]);
+  }, [currentPath]);
 
   const handleQuickmemoClick = useCallback(() => {
     router.push("/quickmemo");
@@ -185,50 +202,62 @@ export function FolderPage({ folderPath }: FolderPageProps) {
 
   return (
     <div className="folder-container">
-      <div className="folder-header">
+      <div className="page-title">
         <h1>
           {isRoot ? (
-            <>Hello, {userName}</>
+            <>
+              Hello, <span className="user-greeting">{userName}</span>.
+            </>
           ) : (
             <>
               <span className="folder-icon">📁</span>
-              {path.basename(folderPath)}
+              {path.basename(decodeURIComponent(currentPath))}
             </>
           )}
         </h1>
-        <p className="folder-path">{folderPath}</p>
       </div>
 
-      <SearchTrigger folderPath={folderPath} className="mobile-search" />
+      <SearchTrigger folderPath={currentPath} className="mobile-search" />
 
+      {/* 最近更新したファイルの一覧 */}
       <DirectoryList
-        title="最近のファイル"
-        files={recentFiles}
-        layout="scroll"
+        title={isRoot ? "最近更新したファイル" : "このフォルダ内の最近の更新"}
+        tree={{
+          folders: [],
+          files: recentFiles.map((fileInfo) => ({
+            name: fileInfo.name,
+            type: "file" as const,
+            path: fileInfo.path,
+          })),
+        }}
+        titleCollapse={false}
+        filesLayout="scroll"
+        foldersLayout="false"
       />
 
-      {currentDirContent.folderContents.map(({ folder, files }) => {
-        const subFolders =
-          folder.children?.filter((child) => child.type === "directory") || [];
-
-        return (
-          <DirectoryList
-            key={folder.path}
-            title={path.basename(folder.path!)}
-            folders={subFolders}
-            files={files.map(convertToFileInfo)}
-            layout="scroll"
-          />
-        );
-      })}
-
-      {currentDirContent.files.length > 0 && (
+      {/* フォルダとファイルの一覧 */}
+      {(currentDirContent.files.length > 0 ||
+        currentDirContent.folders.length > 0) && (
         <DirectoryList
-          title={`${path.basename(folderPath)}のファイル`}
-          files={currentDirContent.files.map(convertToFileInfo)}
-          layout="grid"
+          title={isRoot ? "フォルダ一覧" : "このフォルダ内のフォルダ一覧"}
+          tree={{
+            folders: currentDirContent.folders,
+            files: currentDirContent.files,
+          }}
+          titleCollapse={true}
+          sectionLayout="list"
+          filesLayout="grid"
+          foldersLayout="collapse-close"
+          showEmptyFolder={false}
+          subFolder={{
+            foldersLayout: "scroll",
+            filesLayout: "scroll",
+            showEmptyFolder: false,
+          }}
         />
       )}
+
+      {/* {isRoot && <DirectoryListDemo currentDirContent={currentDirContent} />} */}
 
       <button onClick={handleQuickmemoClick} className="quickmemo-button">
         <Icon icon="ph:note-pencil" width={24} height={24} />
@@ -245,18 +274,21 @@ export function FolderPage({ folderPath }: FolderPageProps) {
           gap: 1.5rem;
         }
 
-        .folder-header {
-          border-bottom: 1px solid #eaeaea;
+        .page-title {
           padding-bottom: 1rem;
         }
 
-        .folder-header h1 {
+        .page-title h1 {
+          margin: 0;
+          font-size: 1.8rem;
           display: flex;
           align-items: center;
           gap: 0.5rem;
-          margin: 0;
-          font-size: 1.8rem;
           color: #333;
+        }
+
+        .user-greeting {
+          text-transform: uppercase;
         }
 
         .folder-icon {
@@ -313,7 +345,7 @@ export function FolderPage({ folderPath }: FolderPageProps) {
           background: #0066cc;
           color: white;
           border: none;
-          display: none;
+          display: flex;
           align-items: center;
           justify-content: center;
           cursor: pointer;
@@ -334,10 +366,6 @@ export function FolderPage({ folderPath }: FolderPageProps) {
 
           .mobile-file-tree {
             margin-top: 1rem;
-          }
-
-          .quickmemo-button {
-            display: flex;
           }
         }
       `}</style>

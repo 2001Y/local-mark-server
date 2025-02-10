@@ -7,8 +7,9 @@ import {
   normalizePath,
   generateUrl,
   generateTreeState,
-  updateUrl,
 } from "../lib/pathUtils";
+import { useRouter } from "next/navigation";
+import { usePath } from "@/app/hooks/usePath";
 
 interface FileListProps {
   files: FileInfo[];
@@ -21,18 +22,16 @@ export function FileList({
   onFileSelect,
   emptyMessage = "ファイルがありません",
 }: FileListProps) {
-  const { setBasePath, setCurrentPath } = useTree();
+  const { setCurrentPath } = useTree();
+  const router = useRouter();
+  const { navigateTo } = usePath();
 
   const handleFileClick = useCallback(
     (file: FileInfo) => {
-      const normalizedPath = normalizePath(file.path);
-      const { basePath, currentPath } = generateTreeState(normalizedPath);
-      const url = generateUrl(normalizedPath);
-      setCurrentPath(currentPath);
-      router.push(url);
+      navigateTo(file.path);
       onFileSelect?.(file);
     },
-    [setBasePath, setCurrentPath, onFileSelect]
+    [navigateTo, onFileSelect]
   );
 
   return (

@@ -17,9 +17,3 @@ export default async function DynamicLayout({
     </Suspense>
   );
 }
-
-// ツリーデータを取得するためのサーバーアクション
-export async function getTreeData() {
-  const { initialTree, updateTree } = await FileTreeServer();
-  return { initialTree, updateTree };
-}

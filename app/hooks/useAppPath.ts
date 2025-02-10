@@ -7,6 +7,7 @@ import {
   normalizePath,
   generateTreeState,
   appPaths,
+  toUrlPath,
 } from "@/app/lib/pathUtils";
 
 /**
@@ -20,23 +21,20 @@ export function useAppPath() {
     (path: string) => {
       const normalizedPath = normalizePath(path);
       const { basePath, currentPath } = generateTreeState(normalizedPath);
-
-      // setBasePath(basePath);
+      setBasePath(basePath);
       setCurrentPath(currentPath);
-      router.push(path);
+
+      // URLエンコードされたパスで遷移
+      const urlPath = toUrlPath(path);
+      router.push(urlPath);
     },
     [router, setBasePath, setCurrentPath]
   );
 
   const navigateToFile = useCallback(
     (filePath: string) => {
-      const cleanPath = filePath.replace(/^\/+/, "");
-      const encodedPath = cleanPath
-        .split("/")
-        .map((segment) => encodeURIComponent(segment))
-        .join("/");
-
-      navigateTo(`/${encodedPath}`);
+      const urlPath = toUrlPath(filePath);
+      navigateTo(urlPath);
     },
     [navigateTo]
   );

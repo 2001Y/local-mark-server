@@ -17,11 +17,11 @@ interface SidebarWrapperProps {
 
 export function SidebarWrapper({ tree, onUpdateTree }: SidebarWrapperProps) {
   const router = useRouter();
-  const { setBasePath, setCurrentPath } = useTree();
+  const { setCurrentPath } = useTree();
 
   const handleFileSelect = (path: string | undefined) => {
     const normalizedPath = normalizePath(path);
-    const { basePath, currentPath } = generateTreeState(normalizedPath);
+    const { currentPath } = generateTreeState(normalizedPath);
     const url = generateUrl(normalizedPath);
     setCurrentPath(currentPath);
     router.push(url);

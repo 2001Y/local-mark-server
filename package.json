@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "generate-icons": "bun run scripts/generate-icons.ts"
   },
   "dependencies": {
     "@blocknote/core": "^0.23.1",
@@ -17,12 +18,14 @@
     "@mantine/core": "^7.16.2",
     "@mantine/hooks": "^7.16.2",
     "@types/lodash": "^4.17.15",
+    "classnames": "^2.5.1",
     "lodash": "^4.17.21",
     "next": "15.1.6",
     "partykit": "^0.0.111",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "sanitize-filename-ts": "^1.0.2",
+    "sass": "^1.84.0",
     "sonner": "^1.7.4",
     "yaml-front-matter": "^4.1.1"
   },

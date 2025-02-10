@@ -79,8 +79,6 @@
 }
 
 a.primary {
-  background: var(--foreground);
-  color: var(--background);
   gap: 8px;
 }
 
@@ -162,9 +160,4 @@ a.secondary {
   .logo {
     filter: invert();
   }
-}
-
-.home-page {
-  height: 100%;
-  overflow: hidden;
 }

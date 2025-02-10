@@ -4,6 +4,11 @@ import { promises as fs } from "fs";
 import path from "path";
 import { FileNode } from "../types/file";
 
+// 日付をフォーマットする関数
+function formatDate(date: Date): string {
+  return date.toISOString().split("T")[0].replace(/-/g, "/");
+}
+
 async function getDirectoryTree(dirPath: string): Promise<FileNode[]> {
   try {
     const entries = await fs.readdir(dirPath, { withFileTypes: true });
@@ -12,6 +17,8 @@ async function getDirectoryTree(dirPath: string): Promise<FileNode[]> {
     const tree = await Promise.all(
       entries.map(async (entry) => {
         const fullPath = path.join(dirPath, entry.name);
+        const stats = await fs.stat(fullPath);
+
         if (entry.isDirectory()) {
           const children = await getDirectoryTree(fullPath);
           return {
@@ -19,6 +26,7 @@ async function getDirectoryTree(dirPath: string): Promise<FileNode[]> {
             type: "directory",
             path: fullPath,
             children,
+            mtime: formatDate(stats.mtime),
           };
         }
         if (entry.isFile() && entry.name.endsWith(".md")) {
@@ -26,6 +34,7 @@ async function getDirectoryTree(dirPath: string): Promise<FileNode[]> {
             name: entry.name,
             type: "file",
             path: fullPath,
+            mtime: formatDate(stats.mtime),
           };
         }
         return null;

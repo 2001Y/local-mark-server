@@ -1,12 +1,14 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { Block } from "@blocknote/core";
 
 interface EditorProps {
   onSave: (content: string) => void;
   autoSave?: boolean;
   filePath?: string;
   initialContent?: string;
+  blocks?: Block[];
 }
 
 const Editor = dynamic(() => import("./Editor"), {
@@ -38,6 +40,7 @@ export function DynamicEditor({
   autoSave = true,
   filePath,
   initialContent,
+  blocks,
 }: EditorProps) {
   return (
     <Editor
@@ -45,6 +48,7 @@ export function DynamicEditor({
       autoSave={autoSave}
       filePath={filePath}
       initialContent={initialContent}
+      blocks={blocks}
     />
   );
 }

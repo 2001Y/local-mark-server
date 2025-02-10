@@ -62,15 +62,39 @@ export function normalizePath(inputPath: string | undefined): string {
     return normalizeDefaultPath();
   }
 
-  // 先頭と末尾のスラッシュを除去
-  const cleanPath = cleanPathForComparison(inputPath);
+  // デコードして正規化
+  const decodedPath = decodeURIComponent(inputPath);
+  const cleanPath = cleanPathForComparison(decodedPath);
 
   // デフォルトパスの場合はデフォルトパスを返す
   if (isDefaultPath(cleanPath)) {
     return normalizeDefaultPath();
   }
 
-  return cleanPath;
+  // パスセパレータを正規化
+  return cleanPath.split(/[/\\]/).join(path.sep);
+}
+
+/**
+ * パスをファイルシステム用に変換します
+ */
+export function toFsPath(inputPath: string): string {
+  const normalizedPath = normalizePath(inputPath);
+  const absolutePath = normalizedPath.startsWith("/")
+    ? normalizedPath
+    : `/${normalizedPath}`;
+  return decodeURIComponent(absolutePath);
+}
+
+/**
+ * パスをURL用に変換します
+ */
+export function toUrlPath(inputPath: string): string {
+  const normalizedPath = normalizePath(inputPath);
+  return normalizedPath
+    .split(path.sep)
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
 }
 
 /**
@@ -111,37 +135,38 @@ export function generateUrl(normalizedPath: string): string {
  * パスとその種類に基づいて、TreeContextの状態を更新するための値を生成します
  */
 export function generateTreeState(inputPath: string): {
-  basePath: string;
   currentPath: string;
+  basePath: string;
 } {
   const normalizedPath = normalizePath(inputPath);
   const pathType = getPathType(normalizedPath);
+  const defaultPath = normalizeDefaultPath();
 
   switch (pathType) {
     case "root":
       return {
-        basePath: normalizeDefaultPath() + "/",
-        currentPath: normalizeDefaultPath() + "/",
+        currentPath: defaultPath + "/",
+        basePath: defaultPath,
       };
     case "directory": {
       const cleanPath = cleanPathForComparison(normalizedPath);
       return {
-        basePath: cleanPath + "/",
         currentPath: cleanPath + "/",
+        basePath: cleanPath,
       };
     }
     case "file": {
-      const dirPath = path.dirname(normalizedPath);
-      const cleanDirPath = cleanPathForComparison(dirPath);
+      const cleanPath = cleanPathForComparison(normalizedPath);
+      const basePath = cleanPath.substring(0, cleanPath.lastIndexOf("/") + 1);
       return {
-        basePath: cleanDirPath + "/",
-        currentPath: cleanPathForComparison(normalizedPath),
+        currentPath: cleanPath,
+        basePath: basePath || defaultPath,
       };
     }
     default:
       return {
-        basePath: normalizeDefaultPath() + "/",
-        currentPath: normalizeDefaultPath() + "/",
+        currentPath: defaultPath + "/",
+        basePath: defaultPath,
       };
   }
 }
@@ -149,11 +174,11 @@ export function generateTreeState(inputPath: string): {
 /**
  * URLを更新します（再レンダリングを引き起こさない）
  */
-// export function router.push(url: string): void {
-//   if (typeof window === "undefined") return;
+export function updateUrl(url: string): void {
+  if (typeof window === "undefined") return;
 
-//   const newUrl = url.startsWith("http") ? new URL(url).pathname : url;
-//   if (window.location.pathname !== newUrl) {
-//     window.history.pushState({ url: newUrl }, "", newUrl);
-//   }
-// }
+  const newUrl = url.startsWith("http") ? new URL(url).pathname : url;
+  if (window.location.pathname !== newUrl) {
+    window.history.pushState({ url: newUrl }, "", newUrl);
+  }
+}
