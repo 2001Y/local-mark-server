@@ -87,12 +87,12 @@ export default async function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${styles.body}`}
       >
         <Providers initialTree={initialTree} updateTree={updateTree}>
-          <ContextMenuLayout>
-            <div className={styles.container}>
-              <SidebarWrapper>{sidebar}</SidebarWrapper>
-              <main className={styles.main}>{children}</main>
-            </div>
-          </ContextMenuLayout>
+          <div className={styles.container}>
+            <SidebarWrapper>{sidebar}</SidebarWrapper>
+            <main className={styles.main}>
+              <ContextMenuLayout>{children}</ContextMenuLayout>
+            </main>
+          </div>
         </Providers>
       </body>
     </html>
