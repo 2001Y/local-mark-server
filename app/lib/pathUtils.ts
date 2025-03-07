@@ -22,68 +22,198 @@ export function getUserNameFromPath(filePath: string): string {
  */
 export function normalizeDefaultPath(): string {
   // 末尾のスラッシュを付けない形で正規化
-  return (
-    process.env.NEXT_PUBLIC_DEFAULT_MD_PATH?.replace(/^\/+/, "").replace(
-      /\/*$/,
-      ""
-    ) || ""
-  );
+  const defaultPath = process.env.NEXT_PUBLIC_DEFAULT_MD_PATH || "";
+  console.log(`[normalizeDefaultPath] 元のデフォルトパス: "${defaultPath}"`);
+
+  // 絶対パスの場合は先頭の/を保持
+  if (defaultPath.startsWith("/")) {
+    const normalized = defaultPath.replace(/\/*$/, "");
+    console.log(`[normalizeDefaultPath] 絶対パスとして正規化: "${normalized}"`);
+    return normalized;
+  }
+
+  // 相対パスの場合
+  const normalized = defaultPath.replace(/^\/+/, "").replace(/\/*$/, "");
+  console.log(`[normalizeDefaultPath] 相対パスとして正規化: "${normalized}"`);
+  return normalized;
 }
 
 /**
  * パスからスラッシュを除去して比較用に正規化します
  */
 export function cleanPathForComparison(path: string | undefined): string {
+  console.log(`[cleanPathForComparison] 入力パス: "${path}"`);
   if (!path) return "";
-  return path.replace(/^\/+/, "").replace(/\/*$/, "");
+
+  // 絶対パスの場合は先頭の/を保持する
+  if (path.startsWith("/")) {
+    // 先頭の/は保持し、末尾の/のみ削除
+    const cleaned = path.replace(/\/*$/, "");
+    console.log(`[cleanPathForComparison] 絶対パスとして処理: "${cleaned}"`);
+    return cleaned;
+  }
+
+  // 相対パスの場合は従来通り処理
+  const cleaned = path.replace(/^\/+/, "").replace(/\/*$/, "");
+  console.log(`[cleanPathForComparison] 相対パスとして処理: "${cleaned}"`);
+  return cleaned;
 }
 
 /**
  * 指定されたパスがデフォルトパスかどうかを判定します
  */
 export function isDefaultPath(path: string | undefined): boolean {
+  console.log(`[isDefaultPath] 入力パス: "${path}"`);
   if (!path) return true;
+
+  const defaultPath = process.env.NEXT_PUBLIC_DEFAULT_MD_PATH;
+  if (!defaultPath) return false;
+
+  // 両方のパスが絶対パスの場合は、そのまま比較
+  if (path.startsWith("/") && defaultPath.startsWith("/")) {
+    const cleanedPath = path.replace(/\/*$/, "");
+    const cleanedDefaultPath = defaultPath.replace(/\/*$/, "");
+    const result = cleanedPath === cleanedDefaultPath;
+    console.log(
+      `[isDefaultPath] 絶対パスとして比較: "${cleanedPath}" === "${cleanedDefaultPath}" => ${result}`
+    );
+    return result;
+  }
+
+  // 通常の比較（相対パスとして）
   const cleanedPath = cleanPathForComparison(path);
-  const cleanedDefaultPath = cleanPathForComparison(
-    process.env.NEXT_PUBLIC_DEFAULT_MD_PATH
+  const cleanedDefaultPath = cleanPathForComparison(defaultPath);
+  const result = cleanedPath === cleanedDefaultPath;
+  console.log(
+    `[isDefaultPath] 相対パスとして比較: "${cleanedPath}" === "${cleanedDefaultPath}" => ${result}`
   );
-  return (
-    cleanedPath === cleanedDefaultPath ||
-    cleanedPath === "" ||
-    cleanedPath === "/"
-  );
+  return result;
 }
 
 /**
  * パスを正規化し、一貫した形式に変換します
  */
 export function normalizePath(inputPath: string | undefined): string {
+  console.log(`[normalizePath] 入力パス: "${inputPath}"`);
+
   if (!inputPath) {
-    return normalizeDefaultPath();
+    const defaultPath = normalizeDefaultPath();
+    console.log(
+      `[normalizePath] 入力パスなし、デフォルトパスを使用: "${defaultPath}"`
+    );
+    return defaultPath;
   }
 
   // デコードして正規化
   const decodedPath = decodeURIComponent(inputPath);
-  const cleanPath = cleanPathForComparison(decodedPath);
+  console.log(`[normalizePath] デコード後: "${decodedPath}"`);
+
+  // 重複スラッシュを削除
+  const withoutDuplicateSlashes = decodedPath.replace(/\/+/g, "/");
+  console.log(
+    `[normalizePath] 重複スラッシュ削除後: "${withoutDuplicateSlashes}"`
+  );
+
+  const cleanPath = cleanPathForComparison(withoutDuplicateSlashes);
+  console.log(`[normalizePath] クリーン後: "${cleanPath}"`);
 
   // デフォルトパスの場合はデフォルトパスを返す
   if (isDefaultPath(cleanPath)) {
-    return normalizeDefaultPath();
+    // 絶対パスを保持するためにprocess.env.NEXT_PUBLIC_DEFAULT_MD_PATHをそのまま使用せず
+    // normalizeDefaultPath()を使用する
+    const defaultPath = normalizeDefaultPath();
+    console.log(`[normalizePath] デフォルトパスと判定: "${defaultPath}"`);
+    return defaultPath;
   }
 
-  // パスセパレータを正規化
-  return cleanPath.split(/[/\\]/).join(path.sep);
+  // 絶対パスの場合は先頭の/を保持
+  if (withoutDuplicateSlashes.startsWith("/")) {
+    // パスセパレータを正規化
+    const normalizedPath = cleanPath.split(/[/\\]/).join(path.sep);
+    // 先頭に/を追加（重複しないように）
+    const absolutePath = path.sep + normalizedPath.replace(/^\/+/, "");
+    console.log(`[normalizePath] 絶対パスとして正規化: "${absolutePath}"`);
+    return absolutePath;
+  }
+
+  // 相対パスの場合
+  const normalizedPath = cleanPath.split(/[/\\]/).join(path.sep);
+  console.log(`[normalizePath] 相対パスとして正規化: "${normalizedPath}"`);
+  return normalizedPath;
 }
 
 /**
  * パスをファイルシステム用に変換します
  */
 export function toFsPath(inputPath: string): string {
-  const normalizedPath = normalizePath(inputPath);
-  const absolutePath = normalizedPath.startsWith("/")
-    ? normalizedPath
-    : `/${normalizedPath}`;
-  return decodeURIComponent(absolutePath);
+  const basePath = process.env.NEXT_PUBLIC_DEFAULT_MD_PATH;
+  if (!basePath) {
+    console.error("[toFsPath] NEXT_PUBLIC_DEFAULT_MD_PATH is not set");
+    throw new Error("NEXT_PUBLIC_DEFAULT_MD_PATH is not set");
+  }
+
+  console.log(`[toFsPath] 入力パス: "${inputPath}", ベースパス: "${basePath}"`);
+
+  // 追加デバッグログ - 入力パスの詳細
+  console.log(`[toFsPath] 入力パスの詳細:`, {
+    originalPath: inputPath,
+    isAbsolute: inputPath.startsWith("/"),
+    pathComponents: inputPath.split("/"),
+    containsJapanese:
+      /[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff00-\uff9f\u4e00-\u9faf\u3400-\u4dbf]/.test(
+        inputPath
+      ),
+    envDefaultPath: process.env.NEXT_PUBLIC_DEFAULT_MD_PATH,
+  });
+
+  // 入力パスがnullまたは空の場合はベースパスを返す
+  if (!inputPath) {
+    console.log(`[toFsPath] 入力パスが空のためベースパスを返す: "${basePath}"`);
+    return basePath;
+  }
+
+  try {
+    // 重複スラッシュを削除
+    const cleanedInputPath = inputPath.replace(/\/+/g, "/");
+    console.log(`[toFsPath] 重複スラッシュ削除後: "${cleanedInputPath}"`);
+
+    // 入力パスが絶対パスの場合は正規化せずにそのまま返す
+    if (path.isAbsolute(cleanedInputPath)) {
+      const decodedPath = decodeURIComponent(cleanedInputPath);
+      console.log(
+        `[toFsPath] 入力が絶対パスのためそのまま返す: "${decodedPath}"`
+      );
+      return decodedPath;
+    }
+
+    const normalizedPath = normalizePath(cleanedInputPath);
+    console.log(`[toFsPath] 正規化後のパス: "${normalizedPath}"`);
+
+    // 正規化後のパスが絶対パスの場合はそのまま返す
+    if (path.isAbsolute(normalizedPath)) {
+      const decodedPath = decodeURIComponent(normalizedPath);
+      console.log(`[toFsPath] 正規化後が絶対パスのため返す: "${decodedPath}"`);
+      return decodedPath;
+    }
+
+    // ベースパスと結合
+    const resultPath = path.join(basePath, normalizedPath);
+    console.log(`[toFsPath] 結合後のパス: "${resultPath}"`);
+    return resultPath;
+  } catch (error) {
+    console.error(`[toFsPath] パス変換エラー:`, error);
+    console.error(`[toFsPath] エラーの詳細:`, {
+      inputPath,
+      basePath,
+      errorType: error instanceof Error ? "Error" : typeof error,
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
+    throw new Error(
+      `パス変換エラー: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
 }
 
 /**
@@ -113,21 +243,37 @@ export function getPathType(
 
 /**
  * 正規化されたパスからURLを生成します
+ * @param normalizedPath 正規化されたパス
+ * @returns URLパス
  */
 export function generateUrl(normalizedPath: string): string {
+  console.log(`[generateUrl] 入力パス: "${normalizedPath}"`);
+
+  // 空のパスやundefinedの場合はルートを返す
+  if (!normalizedPath) {
+    console.log(`[generateUrl] 空のパス、ルートを返します`);
+    return "/";
+  }
+
+  // パスを正規化
   const cleanPath = cleanPathForComparison(normalizedPath);
+  console.log(`[generateUrl] クリーン後: "${cleanPath}"`);
 
   // デフォルトパスの場合は / を返す
   if (isDefaultPath(cleanPath)) {
+    console.log(`[generateUrl] デフォルトパスと判定、ルートを返します`);
     return "/";
   }
 
   // パスをセグメントに分割してエンコード
-  const encodedPath = cleanPath
-    .split("/")
+  const segments = cleanPath.split("/").filter(Boolean);
+  console.log(`[generateUrl] セグメント:`, segments);
+
+  const encodedPath = segments
     .map((segment) => encodeURIComponent(segment))
     .join("/");
 
+  console.log(`[generateUrl] エンコード後: "${encodedPath}"`);
   return `/${encodedPath}`;
 }
 

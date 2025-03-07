@@ -6,10 +6,11 @@ import { Providers } from "./components/Providers";
 import styles from "./layout.module.css";
 import { TreeProvider } from "./context/TreeContext";
 import { Header } from "./components/Header";
-import { DynamicEditorProvider } from "@/app/components/DynamicEditorProvider";
+import { EditorProvider } from "./context/EditorContext";
 import { FileTreeServer } from "@/app/components/FileTreeServer";
 import { ContextMenuProvider } from "./context/ContextMenuContext";
 import { ContextMenuLayout } from "./components/ContextMenuLayout";
+import { ensureDefaultDirectory } from "./lib/fileSystem";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -25,6 +26,11 @@ export const metadata: Metadata = {
   title: "LocalMark",
   description: "Local Markdown Editor",
 };
+
+// デフォルトディレクトリの確認と作成
+ensureDefaultDirectory().catch((error) => {
+  console.error("Failed to ensure default directory:", error);
+});
 
 interface RootLayoutProps {
   children: React.ReactNode;
@@ -42,7 +48,22 @@ export default async function RootLayout({
       <head>
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#0066cc" />
-        <script
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <link
+          rel="icon"
+          href="/apple-touch-icon.png"
+          type="image/png"
+          sizes="512x512"
+        />
+        <link
+          rel="apple-touch-icon"
+          href="/apple-touch-icon.png"
+          type="image/png"
+        />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="LocalMark" />
+        {/* <script
           dangerouslySetInnerHTML={{
             __html: `
               if ('serviceWorker' in navigator) {
@@ -52,24 +73,26 @@ export default async function RootLayout({
               }
             `,
           }}
-        />
+        /> */}
       </head>
-      <body className={`${geistSans.variable} ${geistMono.variable}`}>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} ${styles.body}`}
+      >
         <Providers>
           <TreeProvider initialTree={initialTree} updateTree={updateTree}>
-            <DynamicEditorProvider>
+            <EditorProvider>
               <ContextMenuProvider>
                 <ContextMenuLayout>
                   <div className={styles.container}>
-                    <div className={styles.sidebar}>{sidebar}</div>
+                    {sidebar}
                     <main className={styles.main}>
-                      <Header />
+                      <Header source="root-layout" />
                       {children}
                     </main>
                   </div>
                 </ContextMenuLayout>
               </ContextMenuProvider>
-            </DynamicEditorProvider>
+            </EditorProvider>
           </TreeProvider>
         </Providers>
       </body>

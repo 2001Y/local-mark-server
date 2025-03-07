@@ -2,6 +2,7 @@
 
 import { Toaster } from "sonner";
 import { MantineProvider, createTheme } from "@mantine/core";
+import { SidebarProvider } from "../context/SidebarContext";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -13,7 +14,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           fontFamily: "Inter, sans-serif",
         })}
       >
-        {children}
+        <SidebarProvider>{children}</SidebarProvider>
       </MantineProvider>
     </>
   );

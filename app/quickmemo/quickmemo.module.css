@@ -47,3 +47,26 @@
   flex: 1;
   overflow: hidden;
 }
+
+.editor-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.editor-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.5rem 0;
+  margin-bottom: 1rem;
+}
+
+/* 読み込み中の表示 */
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  font-size: 1.2rem;
+  color: #666;
+}

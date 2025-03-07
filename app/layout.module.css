@@ -6,6 +6,10 @@
 
 .sidebar {
   display: flex;
+  min-width: 300px;
+  width: 300px;
+  flex-shrink: 0;
+  z-index: 100;
 }
 
 .main {
@@ -16,8 +20,16 @@
   position: relative;
 }
 
+.body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
 @media (max-width: 768px) {
   .sidebar {
-    display: none;
+    display: none !important;
+    width: 0 !important;
+    min-width: 0 !important;
   }
 }

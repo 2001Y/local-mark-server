@@ -23,7 +23,12 @@ export function MenuTrigger({ path, type = "file", node }: MenuTriggerProps) {
 
   return (
     <div className="menu-trigger" onClick={handleClick}>
-      <Icon icon="ph:dots-three-vertical-bold" width={16} height={16} />
+      <Icon
+        icon="ph:dots-three-vertical-bold"
+        width={16}
+        height={16}
+        color="#cfcfcf"
+      />
       <style jsx>{`
         .menu-trigger {
           cursor: pointer;

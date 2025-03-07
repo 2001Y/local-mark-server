@@ -25,38 +25,37 @@ export function useFileActions() {
           fileName = userFileName.trim() || defaultFileName;
         }
 
-        const newPath = `${appPaths.defaultMdPath}/${fileName}.md`;
+        if (!appPaths.defaultMdPath) {
+          console.error("Default MD path is not set");
+          toast.error("保存先のパスが設定されていません");
+          return { success: false };
+        }
 
-        const result = await serverActions.createFile(
-          appPaths.defaultMdPath,
-          `${fileName}.md`
+        const newPath = `${appPaths.defaultMdPath}/${fileName}.md`;
+        console.log("Saving file to:", newPath);
+
+        const saveResult = await serverActions.saveFile(
+          newPath,
+          initialContent || ""
         );
 
-        if (!result.success) {
-          toast.error(result.error || "ファイルの作成に失敗しました");
-          return;
+        if (!saveResult.success) {
+          console.error("File save failed:", saveResult.error);
+          toast.error(saveResult.error || "ファイルの保存に失敗しました");
+          return { success: false };
         }
 
-        if (initialContent) {
-          const saveResult = await serverActions.saveFile(
-            newPath,
-            initialContent
-          );
-          if (!saveResult.success) {
-            toast.error(saveResult.error || "ファイルの保存に失敗しました");
-            return;
-          }
-        }
-
-        toast.success("新規ファイルを作成しました");
+        toast.success("ファイルを保存しました");
         return { success: true, path: newPath };
       } catch (error) {
-        console.error("Error creating new file:", error);
-        toast.error("ファイルの作成に失敗しました");
+        const errorMessage =
+          error instanceof Error ? error.message : "不明なエラーが発生しました";
+        console.error("Error saving new file:", error);
+        toast.error(`ファイルの保存に失敗しました: ${errorMessage}`);
         return { success: false };
       }
     },
-    []
+    [appPaths]
   );
 
   const handleNewFolder = useCallback(

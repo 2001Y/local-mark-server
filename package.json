@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "generate-icons": "bun run scripts/generate-icons.ts"
+    "generate-icons": "bun run scripts/generate-icons.ts",
+    "server": "bun run scripts/deploy.ts",
+    "server:js": "node scripts/deploy.js",
+    "deploy": "bun run scripts/deploy.ts"
   },
   "dependencies": {
     "@blocknote/core": "^0.23.1",

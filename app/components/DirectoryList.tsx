@@ -6,6 +6,23 @@ import styles from "./DirectoryList.module.scss";
 import { MenuTrigger } from "./MenuTrigger";
 import { useContextMenu } from "../context/ContextMenuContext";
 
+type LayoutType =
+  | "scroll"
+  | "grid"
+  | "default"
+  | "collapse-open"
+  | "collapse-close";
+type FolderLayoutType = LayoutType | "false";
+
+interface ItemContentProps {
+  icon: string;
+  name: string;
+  date?: string;
+  rightIcon?: string;
+  node?: FileNode;
+  layout?: LayoutType;
+}
+
 function ItemContent({
   icon,
   name,
@@ -13,14 +30,7 @@ function ItemContent({
   rightIcon,
   node,
   layout = "default",
-}: {
-  icon: string;
-  name: string;
-  date?: string;
-  rightIcon?: string;
-  node?: FileNode;
-  layout?: "default" | "grid" | "scroll" | "collapse-open" | "collapse-close";
-}) {
+}: ItemContentProps) {
   const { openMenu } = useContextMenu();
 
   const handleContextMenu = useCallback(
@@ -33,15 +43,25 @@ function ItemContent({
     [node, openMenu]
   );
 
+  // アイコンの表示を決定
+  const displayIcon = rightIcon ? (
+    <span className={styles["toggle-icon-content"]}>
+      {layout === "collapse-open" ? "▼" : "▶"}
+    </span>
+  ) : (
+    <span className={styles["item-icon-content"]}>{icon}</span>
+  );
+
   return (
     <div
       className={`${styles["item-content"]} ${styles[`layout-${layout}`]}`}
       onContextMenu={handleContextMenu}
     >
       {layout === "scroll" ? (
+        // スクロールレイアウトの場合：上下に2分割
         <>
           <div className={styles["item-top"]}>
-            <span className={styles["item-icon"]}>{icon}</span>
+            <span className={styles["item-icon"]}>{displayIcon}</span>
             {node?.path && (
               <MenuTrigger path={node.path} type={node.type} node={node} />
             )}
@@ -52,41 +72,31 @@ function ItemContent({
           </div>
         </>
       ) : (
+        // それ以外（通常 or collapse or grid）
         <>
+          <span className={styles["item-icon"]}>{displayIcon}</span>
+          <div className={styles["item-details"]}>
+            <span className={styles["item-name"]}>{name}</span>
+            {date && <span className={styles["item-date"]}>{date}</span>}
+          </div>
           {rightIcon ? (
-            <>
-              <span className={styles["item-icon"]}>{icon}</span>
-              <div className={styles["item-details"]}>
-                <span className={styles["item-name"]}>{name}</span>
-                {date && <span className={styles["item-date"]}>{date}</span>}
-              </div>
-              <div className={styles["toggle-icon"]}>
-                {node?.path && (
-                  <MenuTrigger path={node.path} type={node.type} node={node} />
-                )}
-                <span className={styles["toggle-icon-content"]}>
-                  {rightIcon === "▶" ? "▸" : "▾"}
-                </span>
-              </div>
-            </>
-          ) : (
-            <>
-              <span className={styles["item-icon"]}>{icon}</span>
-              <div className={styles["item-details"]}>
-                <span className={styles["item-name"]}>{name}</span>
-                {date && <span className={styles["item-date"]}>{date}</span>}
-              </div>
+            <div className={styles["toggle-icon"]}>
               {node?.path && (
                 <MenuTrigger path={node.path} type={node.type} node={node} />
               )}
-            </>
-          )}
+            </div>
+          ) : node?.path ? (
+            <MenuTrigger path={node.path} type={node.type} node={node} />
+          ) : null}
         </>
       )}
     </div>
   );
 }
 
+/* --------------------------------------------------
+   FileList
+-------------------------------------------------- */
 function FileList({
   files,
   filesLayout,
@@ -100,46 +110,56 @@ function FileList({
 
   return (
     <div className={`${styles["files-list"]} ${styles[filesLayout]}`}>
-      {files.map((file) => (
-        <Link
-          key={file.path ?? file.name}
-          href={generateUrl(file.path!)}
-          className="file-item"
-          onClick={(e) => {
-            if ((e.target as HTMLElement).closest(".menu-trigger")) {
-              e.preventDefault();
-            }
-          }}
-        >
-          <ItemContent
-            icon="📄"
-            name={file.name}
-            date={
-              file.mtime
-                ? new Date(file.mtime).toLocaleDateString("ja-JP")
-                : undefined
-            }
-            node={file}
-            layout={filesLayout}
-          />
-        </Link>
-      ))}
+      {files.map((file) => {
+        // パスのログ出力
+        console.log(`[DirectoryList] ファイルパス:`, {
+          originalPath: file.path,
+          generatedUrl: file.path ? generateUrl(file.path) : null,
+        });
+
+        return (
+          <Link
+            key={file.path ?? file.name}
+            href={file.path ? generateUrl(file.path) : "#"}
+            className="file-item"
+            onClick={(e) => {
+              // MenuTrigger をクリックした時はページ遷移しない
+              if ((e.target as HTMLElement).closest(".menu-trigger")) {
+                e.preventDefault();
+              }
+            }}
+          >
+            <ItemContent
+              icon="📄"
+              name={file.name}
+              date={
+                file.mtime
+                  ? new Date(file.mtime).toLocaleDateString("ja-JP")
+                  : undefined
+              }
+              node={file}
+              layout={filesLayout}
+            />
+          </Link>
+        );
+      })}
     </div>
   );
 }
 
-/** サブフォルダ用の設定 */
+/* --------------------------------------------------
+   サブフォルダ用の設定
+-------------------------------------------------- */
 interface SubFolderConfig {
-  foldersLayout:
-    | "scroll"
-    | "grid"
-    | "collapse-open"
-    | "collapse-close"
-    | "false";
+  foldersLayout: FolderLayoutType;
   filesLayout: "scroll" | "grid";
   showEmptyFolder: boolean;
 }
 
+/* --------------------------------------------------
+   FolderItem
+   - フォルダ1つの表示
+-------------------------------------------------- */
 function FolderItem({
   folder,
   foldersLayout,
@@ -149,12 +169,7 @@ function FolderItem({
   level = 0,
 }: {
   folder: FileNode;
-  foldersLayout:
-    | "scroll"
-    | "grid"
-    | "collapse-open"
-    | "collapse-close"
-    | "false";
+  foldersLayout: FolderLayoutType;
   filesLayout: "scroll" | "grid";
   showEmptyFolder?: boolean;
   subFolder?: Partial<SubFolderConfig>;
@@ -162,25 +177,29 @@ function FolderItem({
 }) {
   const directories = folder.children?.filter((c) => c.type === "directory");
   const files = folder.children?.filter((c) => c.type === "file");
-
   const hasContent = (directories?.length || 0) + (files?.length || 0) > 0;
-  if (!hasContent && !showEmptyFolder) {
-    return null;
-  }
 
+  if (!hasContent && !showEmptyFolder) return null;
+  if (foldersLayout === "false") return null;
+
+  // サブフォルダの設定があれば優先使用
   const childFoldersLayout = subFolder?.foldersLayout ?? foldersLayout;
   const childFilesLayout = subFolder?.filesLayout ?? filesLayout;
   const childShowEmpty = subFolder?.showEmptyFolder ?? showEmptyFolder;
 
-  if (foldersLayout === "false") {
-    return null;
-  }
-
+  // "collapse-open" / "collapse-close" → <details> で包む
   if (foldersLayout === "collapse-open" || foldersLayout === "collapse-close") {
+    const isOpen = foldersLayout === "collapse-open";
+    const [isDetailsOpen, setIsDetailsOpen] = React.useState(isOpen);
+
     return (
       <details
-        open={foldersLayout === "collapse-open"}
+        open={isOpen}
         className={styles["details-summary"]}
+        onToggle={(e) => {
+          const details = e.currentTarget as HTMLDetailsElement;
+          setIsDetailsOpen(details.open);
+        }}
       >
         <summary className={styles["folder-header"]}>
           <ItemContent
@@ -188,7 +207,7 @@ function FolderItem({
             name={folder.name}
             rightIcon="▶"
             node={folder}
-            layout={foldersLayout}
+            layout={isDetailsOpen ? "collapse-open" : "collapse-close"}
           />
         </summary>
         <div className={styles["folder-content"]}>
@@ -210,10 +229,19 @@ function FolderItem({
     );
   }
 
+  // 通常 or scroll or grid
   return (
-    <div className={`${styles["folder-item"]}`}>
+    <div className={styles["folder-item"]}>
+      {/* パスのログ出力 */}
+      {(() => {
+        console.log(`[DirectoryList] フォルダパス:`, {
+          originalPath: folder.path,
+          generatedUrl: folder.path ? generateUrl(folder.path) : null,
+        });
+        return null;
+      })()}
       <Link
-        href={generateUrl(folder.path!)}
+        href={folder.path ? generateUrl(folder.path) : "#"}
         className={styles["folder-link"]}
         onClick={(e) => {
           if ((e.target as HTMLElement).closest(".menu-trigger")) {
@@ -232,6 +260,10 @@ function FolderItem({
   );
 }
 
+/* --------------------------------------------------
+   FoldersList
+   - フォルダ一覧のラッパー
+-------------------------------------------------- */
 function FoldersList({
   folders,
   foldersLayout,
@@ -241,20 +273,13 @@ function FoldersList({
   level = 0,
 }: {
   folders: FileNode[];
-  foldersLayout:
-    | "scroll"
-    | "grid"
-    | "collapse-open"
-    | "collapse-close"
-    | "false";
+  foldersLayout: FolderLayoutType;
   filesLayout: "scroll" | "grid";
   showEmptyFolder?: boolean;
   subFolder?: Partial<SubFolderConfig>;
   level?: number;
 }) {
-  if (!folders || folders.length === 0) {
-    return null;
-  }
+  if (!folders || folders.length === 0) return null;
 
   const folderItems = folders.map((folder) => (
     <FolderItem
@@ -268,12 +293,16 @@ function FoldersList({
     />
   ));
 
-  const className = `${styles["folders-list"]} ${styles[foldersLayout]}`;
-
-  return <div className={className}>{folderItems}</div>;
+  return (
+    <div className={`${styles["folders-list"]} ${styles[foldersLayout]}`}>
+      {folderItems}
+    </div>
+  );
 }
 
-/** DirectoryList Props */
+/* --------------------------------------------------
+   DirectoryList Props
+-------------------------------------------------- */
 interface DirectoryListProps {
   title: string;
   tree: {
@@ -281,19 +310,21 @@ interface DirectoryListProps {
     files: FileNode[];
   };
   filesLayout?: "scroll" | "grid";
-  foldersLayout?:
-    | "scroll"
-    | "grid"
-    | "collapse-open"
-    | "collapse-close"
-    | "false";
+  foldersLayout?: FolderLayoutType;
   showEmptyFolder?: boolean;
   titleCollapse?: boolean;
+  /**
+   * セクション全体のレイアウトを「一覧風(list)」にまとめて
+   * 線で囲むようなスタイルにするかどうか (初期値 false)
+   */
   sectionLayout?: "list" | false;
   subFolder?: Partial<SubFolderConfig>;
 }
 
-/** ディレクトリ全体を表示するコンポーネント */
+/* --------------------------------------------------
+   DirectoryList
+   - ディレクトリ全体を表示
+-------------------------------------------------- */
 export function DirectoryList({
   title,
   tree,
@@ -321,17 +352,26 @@ export function DirectoryList({
     </>
   );
 
+  // --- タイトル折りたたみ「しない」場合 ---
   if (!titleCollapse) {
     return (
       <div className={styles["directory-section"]}>
         <div className={styles["section-header"]}>
           <h2>{title}</h2>
         </div>
-        {folderContent}
+        <div
+          // ここで必ず "section-content" を出力
+          className={`${styles["section-content"]} ${
+            sectionLayout === "list" ? styles["list"] : ""
+          }`}
+        >
+          {folderContent}
+        </div>
       </div>
     );
   }
 
+  // --- タイトル折りたたみ「する」場合 ---
   return (
     <div className={styles["directory-section"]}>
       <details open className={styles["details-summary"]}>

@@ -6,6 +6,7 @@ import { FileTreeClient } from "./FileTreeClient";
 import { SearchTrigger } from "./SearchTrigger";
 import { useTree } from "@/app/context/TreeContext";
 import { Icon } from "@iconify/react";
+import { useEffect, useState } from "react";
 
 interface SidebarProps {
   tree: FileNode[];
@@ -15,6 +16,26 @@ interface SidebarProps {
 
 export function Sidebar({ tree, onFileSelect, onUpdateTree }: SidebarProps) {
   const { currentPath, isRoot } = useTree();
+  const [windowWidth, setWindowWidth] = useState<number>(
+    typeof window !== "undefined" ? window.innerWidth : 0
+  );
+
+  // 画面サイズの変更を検出
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth);
+    };
+
+    window.addEventListener("resize", handleResize);
+    // 初期値を設定
+    setWindowWidth(window.innerWidth);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
 
   return (
     <div className="sidebar">
@@ -51,6 +72,8 @@ export function Sidebar({ tree, onFileSelect, onUpdateTree }: SidebarProps) {
           padding: 1rem;
           display: flex;
           flex-direction: column;
+          position: relative;
+          z-index: 100;
         }
 
         .sidebar-header {
@@ -132,6 +155,9 @@ export function Sidebar({ tree, onFileSelect, onUpdateTree }: SidebarProps) {
         }
 
         @media (max-width: 768px) {
+          .sidebar {
+            display: none;
+          }
           :global(.desktop-search) {
             display: none;
           }

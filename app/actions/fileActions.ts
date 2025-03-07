@@ -56,7 +56,19 @@ export async function saveFile(
   content: string
 ): Promise<OperationResult> {
   try {
-    const absolutePath = filePath.startsWith("/") ? filePath : `/${filePath}`;
+    // 環境変数で指定されたベースパスを使用
+    const basePath = process.env.NEXT_PUBLIC_DEFAULT_MD_PATH;
+    if (!basePath) {
+      return {
+        success: false,
+        error: "NEXT_PUBLIC_DEFAULT_MD_PATH が設定されていません",
+      };
+    }
+
+    // 相対パスの場合は、ベースパスからの相対パスとして扱う
+    const absolutePath = path.isAbsolute(filePath)
+      ? filePath
+      : path.join(basePath, filePath);
     const decodedPath = decodeURIComponent(absolutePath);
 
     let finalContent = content;
@@ -67,6 +79,10 @@ export async function saveFile(
     } catch (error) {
       console.log("Content parsing failed, using as-is");
     }
+
+    // ディレクトリが存在することを確認
+    const directory = path.dirname(decodedPath);
+    await fs.mkdir(directory, { recursive: true });
 
     await fs.writeFile(decodedPath, finalContent, "utf-8");
     revalidatePath("/[...path]");

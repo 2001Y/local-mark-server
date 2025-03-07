@@ -228,9 +228,10 @@ export function FolderPage({
             name: fileInfo.name,
             type: "file" as const,
             path: fileInfo.path,
+            mtime: fileInfo.lastModified,
           })),
         }}
-        titleCollapse={false}
+        titleCollapse={true}
         filesLayout="scroll"
         foldersLayout="false"
       />
@@ -244,14 +245,14 @@ export function FolderPage({
             folders: currentDirContent.folders,
             files: currentDirContent.files,
           }}
-          titleCollapse={true}
+          titleCollapse={false}
           sectionLayout="list"
           filesLayout="grid"
           foldersLayout="collapse-close"
           showEmptyFolder={false}
           subFolder={{
             foldersLayout: "scroll",
-            filesLayout: "scroll",
+            filesLayout: "grid",
             showEmptyFolder: false,
           }}
         />

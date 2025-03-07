@@ -1,154 +1,146 @@
 import { Block } from "@blocknote/core";
-import { createHash } from "crypto";
+import { hash } from "./hash";
+import { loadFront } from "yaml-front-matter";
+
+// 型定義の追加
+declare module "yaml-front-matter" {
+  interface YamlFrontMatter {
+    __content: string;
+    [key: string]: any;
+  }
+  export function loadFront(content: string): YamlFrontMatter;
+}
 
 const CACHE_PREFIX = "block_cache_";
-const CACHE_KEY = "editor_blocks_cache";
+const CACHE_VERSION = "v1";
 
-export interface CacheEntry {
+interface CacheData {
   blocks: Block[];
+  hash: string;
   timestamp: number;
-  contentHash: string;
 }
 
-interface BlockCache {
-  [path: string]: {
-    blocks: Block[];
-    hash: string;
-  };
+// キャッシュキーの生成
+function getCacheKey(path: string): string {
+  return `${CACHE_PREFIX}${CACHE_VERSION}_${path}`;
 }
 
-// コンテンツのハッシュを計算
-const calculateContentHash = (blocks: Block[]): string => {
-  try {
-    // ブロックの本質的な内容のみを抽出
-    const simplifiedBlocks = blocks.map((block) => ({
-      type: block.type,
-      content: block.content,
-      children: block.children,
-    }));
-    const contentString = JSON.stringify(simplifiedBlocks);
-    return createHash("sha256").update(contentString).digest("hex");
-  } catch {
-    console.warn("ハッシュ計算に失敗しました");
-    return Date.now().toString(); // フォールバック
-  }
-};
+// front-matterからハッシュを取得
+function getHashFromContent(content: string): string {
+  const { __content, ...frontMatter } = loadFront(content);
+  return frontMatter.hash || "";
+}
 
-// キャッシュの取得
-const getCache = (): BlockCache => {
-  try {
-    const data = localStorage.getItem(CACHE_KEY);
-    return data ? JSON.parse(data) : {};
-  } catch {
-    return {};
-  }
-};
+// ブロックの内容を比較
+function compareBlocks(blocksA: Block[], blocksB: Block[]): boolean {
+  return JSON.stringify(blocksA) === JSON.stringify(blocksB);
+}
 
 // キャッシュの保存
-const saveCache = (cache: BlockCache): boolean => {
+export function setBlockCache(
+  path: string,
+  blocks: Block[],
+  contentHash?: string
+): void {
   try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
-    return true;
-  } catch {
-    // ストレージ容量超過時は全キャッシュをクリア
-    try {
-      localStorage.removeItem(CACHE_KEY);
-      return false;
-    } catch {
-      return false;
-    }
+    const cacheData: CacheData = {
+      blocks,
+      hash: contentHash || hash(JSON.stringify(blocks)),
+      timestamp: Date.now(),
+    };
+    localStorage.setItem(getCacheKey(path), JSON.stringify(cacheData));
+    console.log(`[BlockCache] 💾 キャッシュを保存しました: ${path}`);
+  } catch (error) {
+    console.error("[BlockCache] ❌ キャッシュの保存に失敗:", error);
   }
-};
+}
 
-// コンテンツが更新されているかチェック
-export const isContentUpdated = (
-  oldBlocks: Block[],
-  newBlocks: Block[]
-): boolean => {
+// キャッシュの取得
+export function getBlockCache(path: string): Block[] | null {
   try {
-    // ブロック数が異なる場合は更新あり
-    if (oldBlocks.length !== newBlocks.length) {
-      console.log("[BlockCache] ブロック数が異なります", {
-        old: oldBlocks.length,
-        new: newBlocks.length,
+    const cacheKey = getCacheKey(path);
+    const cacheString = localStorage.getItem(cacheKey);
+    if (!cacheString) return null;
+
+    const cacheData = JSON.parse(cacheString) as CacheData;
+    return cacheData.blocks;
+  } catch (error) {
+    console.error("[BlockCache] ❌ キャッシュの取得に失敗:", error);
+    return null;
+  }
+}
+
+// キャッシュのハッシュ取得
+export function getCacheHash(path: string): string | null {
+  try {
+    const cacheKey = getCacheKey(path);
+    const cacheString = localStorage.getItem(cacheKey);
+    if (!cacheString) return null;
+
+    const cacheData = JSON.parse(cacheString) as CacheData;
+    return cacheData.hash;
+  } catch (error) {
+    console.error("[BlockCache] ❌ キャッシュのハッシュ取得に失敗:", error);
+    return null;
+  }
+}
+
+// コンテンツの更新チェック
+export function isContentUpdated(
+  currentBlocks: Block[] | null,
+  newBlocks: Block[] | null,
+  serverContent?: string
+): boolean {
+  if (!currentBlocks || !newBlocks) return true;
+
+  // サーバーコンテンツがある場合はハッシュを比較
+  if (serverContent) {
+    const serverHash = getHashFromContent(serverContent);
+    const cacheHash = getCacheHash(serverContent);
+
+    if (serverHash && cacheHash && serverHash !== cacheHash) {
+      console.log("[BlockCache] 📝 ハッシュが異なります", {
+        server: serverHash,
+        cache: cacheHash,
       });
       return true;
     }
+  }
 
-    const oldHash = calculateContentHash(oldBlocks);
-    const newHash = calculateContentHash(newBlocks);
-    const hasChanged = oldHash !== newHash;
+  // ハッシュがない場合やローカルストレージの比較の場合はブロックを直接比較
+  return !compareBlocks(currentBlocks, newBlocks);
+}
 
-    if (hasChanged) {
-      console.log("[BlockCache] コンテンツハッシュが異なります", {
-        old: oldHash.slice(0, 8),
-        new: newHash.slice(0, 8),
-      });
+// キャッシュの削除
+export function clearBlockCache(path: string): void {
+  try {
+    localStorage.removeItem(getCacheKey(path));
+    console.log(`[BlockCache] 🗑️ キャッシュを削除しました: ${path}`);
+  } catch (error) {
+    console.error("[BlockCache] ❌ キャッシュの削除に失敗:", error);
+  }
+}
+
+// キャッシュの統計情報
+export function getCacheStats(): { totalSize: number; count: number } {
+  try {
+    let totalSize = 0;
+    let count = 0;
+
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(CACHE_PREFIX)) {
+        const value = localStorage.getItem(key);
+        if (value) {
+          totalSize += value.length;
+          count++;
+        }
+      }
     }
 
-    return hasChanged;
+    return { totalSize, count };
   } catch (error) {
-    console.error("[BlockCache] 比較エラー:", error);
-    return true; // エラーの場合は安全のため更新ありとする
-  }
-};
-
-export const setBlockCache = (path: string, blocks: Block[]) => {
-  try {
-    const cache = getCache();
-    cache[path] = {
-      blocks,
-      hash: calculateContentHash(blocks),
-    };
-    return saveCache(cache);
-  } catch {
-    return false;
-  }
-};
-
-export const getBlockCache = (path: string): Block[] | null => {
-  try {
-    const cache = getCache();
-    return cache[path]?.blocks || null;
-  } catch {
-    return null;
-  }
-};
-
-export const clearBlockCache = (path: string) => {
-  try {
-    const cache = getCache();
-    delete cache[path];
-    return saveCache(cache);
-  } catch {
-    return false;
-  }
-};
-
-// キャッシュの統計情報を取得
-export const getCacheStats = () => {
-  try {
-    const cache = getCache();
-    const data = JSON.stringify(cache);
-    return {
-      totalSize: Math.round((data.length * 2) / 1024), // KB単位
-      count: Object.keys(cache).length,
-    };
-  } catch {
+    console.error("[BlockCache] ❌ キャッシュ統計の取得に失敗:", error);
     return { totalSize: 0, count: 0 };
   }
-};
-
-// キャッシュのタイムスタンプを取得
-export const getCacheTimestamp = (path: string): number | null => {
-  try {
-    const key = CACHE_PREFIX + path;
-    const data = localStorage.getItem(key);
-    if (!data) return null;
-
-    const entry: CacheEntry = JSON.parse(data);
-    return entry.timestamp;
-  } catch {
-    return null;
-  }
-};
+}

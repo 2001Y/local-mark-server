@@ -10,6 +10,12 @@ const nextConfig = {
       bodySizeLimit: "2mb",
     },
   },
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.output.filename = "static/chunks/[name].js";
+    }
+    return config;
+  },
   trailingSlash: false,
   pageExtensions: ["ts", "tsx", "js", "jsx"],
   // Disable static optimization for API routes
@@ -45,12 +51,16 @@ const nextConfig = {
           },
         ],
       },
+      {
+        source: "/service-worker.js",
+        headers: [
+          {
+            key: "Content-Type",
+            value: "application/javascript; charset=utf-8",
+          },
+        ],
+      },
     ];
-  },
-  pwa: {
-    dest: "public",
-    register: true,
-    skipWaiting: true,
   },
 };
 
