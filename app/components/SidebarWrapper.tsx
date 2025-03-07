@@ -11,13 +11,12 @@ import {
 } from "../lib/pathUtils";
 
 interface SidebarWrapperProps {
-  tree: FileNode[];
-  onUpdateTree: () => Promise<FileNode[]>;
+  children?: React.ReactNode;
 }
 
-export function SidebarWrapper({ tree, onUpdateTree }: SidebarWrapperProps) {
+export function SidebarWrapper({ children }: SidebarWrapperProps) {
   const router = useRouter();
-  const { setCurrentPath } = useTree();
+  const { setCurrentPath, tree, updateTree } = useTree();
 
   const handleFileSelect = (path: string | undefined) => {
     const normalizedPath = normalizePath(path);
@@ -30,7 +29,7 @@ export function SidebarWrapper({ tree, onUpdateTree }: SidebarWrapperProps) {
   return (
     <Sidebar
       tree={tree}
-      onUpdateTree={onUpdateTree}
+      onUpdateTree={updateTree}
       onFileSelect={handleFileSelect}
     />
   );

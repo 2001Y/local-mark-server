@@ -3,28 +3,36 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "@mantine/core/styles.css";
 import { Providers } from "./components/Providers";
+import { SidebarWrapper } from "./components/SidebarWrapper";
+import { FileTreeServer } from "./components/FileTreeServer";
 import styles from "./layout.module.css";
-import { TreeProvider } from "./context/TreeContext";
-import { Header } from "./components/Header";
-import { EditorProvider } from "./context/EditorContext";
-import { FileTreeServer } from "@/app/components/FileTreeServer";
-import { ContextMenuProvider } from "./context/ContextMenuContext";
 import { ContextMenuLayout } from "./components/ContextMenuLayout";
 import { ensureDefaultDirectory } from "./lib/fileSystem";
 
 const geistSans = Geist({
-  variable: "--font-geist-sans",
   subsets: ["latin"],
+  variable: "--font-geist-sans",
 });
 
 const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
   subsets: ["latin"],
+  variable: "--font-geist-mono",
 });
 
 export const metadata: Metadata = {
-  title: "LocalMark",
-  description: "Local Markdown Editor",
+  title: "Local Mark Server",
+  description: "Markdown editor for local files",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Local Mark Server",
+  },
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+  },
 };
 
 // デフォルトディレクトリの確認と作成
@@ -34,7 +42,7 @@ ensureDefaultDirectory().catch((error) => {
 
 interface RootLayoutProps {
   children: React.ReactNode;
-  sidebar: React.ReactNode;
+  sidebar?: React.ReactNode;
 }
 
 export default async function RootLayout({
@@ -78,22 +86,13 @@ export default async function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${styles.body}`}
       >
-        <Providers>
-          <TreeProvider initialTree={initialTree} updateTree={updateTree}>
-            <EditorProvider>
-              <ContextMenuProvider>
-                <ContextMenuLayout>
-                  <div className={styles.container}>
-                    {sidebar}
-                    <main className={styles.main}>
-                      <Header source="root-layout" />
-                      {children}
-                    </main>
-                  </div>
-                </ContextMenuLayout>
-              </ContextMenuProvider>
-            </EditorProvider>
-          </TreeProvider>
+        <Providers initialTree={initialTree} updateTree={updateTree}>
+          <ContextMenuLayout>
+            <div className={styles.container}>
+              <SidebarWrapper>{sidebar}</SidebarWrapper>
+              <main className={styles.main}>{children}</main>
+            </div>
+          </ContextMenuLayout>
         </Providers>
       </body>
     </html>

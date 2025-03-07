@@ -17,6 +17,7 @@ import { MantineProvider, createTheme } from "@mantine/core";
 import { toast } from "sonner";
 import { useEditor } from "@/app/context/EditorContext";
 import { debounce } from "lodash";
+import { DragDropHandler } from "@/app/components/DragDropHandler";
 
 interface FileEditorProps {
   filePath: string;
@@ -48,6 +49,8 @@ export function FileEditor({ filePath, initialContent }: FileEditorProps) {
   const hasUserEditedRef = useRef<boolean>(false);
   // 最後のロード時間から一定時間経過したかを追跡
   const loadCooldownTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // エディタコンテナのref
+  const editorContainerRef = useRef<HTMLDivElement>(null);
 
   // コンポーネントがマウントされたときにprevFilePathRefを更新
   useEffect(() => {
@@ -340,18 +343,21 @@ export function FileEditor({ filePath, initialContent }: FileEditorProps) {
   if (!editor) return null;
 
   return (
-    <div className="editor-container">
-      <MantineProvider theme={createTheme({})} defaultColorScheme="light">
-        <BlockNoteView editor={editor} ref={editorViewRef} />
-      </MantineProvider>
-      <style jsx>{`
-        .editor-container {
-          width: 100%;
-          height: 100%;
-          display: flex;
-          flex-direction: column;
-        }
-      `}</style>
-    </div>
+    <DragDropHandler>
+      <div className="editor-container" ref={editorContainerRef}>
+        <MantineProvider theme={createTheme({})} defaultColorScheme="light">
+          <BlockNoteView editor={editor} ref={editorViewRef} />
+        </MantineProvider>
+        <style jsx>{`
+          .editor-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+          }
+        `}</style>
+      </div>
+    </DragDropHandler>
   );
 }

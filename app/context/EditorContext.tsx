@@ -17,6 +17,8 @@ import { getBlockCache, setBlockCache, getCacheStats } from "../lib/blockCache";
 import { getFileContent, saveFile } from "../actions/server";
 import { createHash } from "crypto";
 import path from "path";
+import { toast } from "sonner";
+import { toFsPath } from "../lib/pathUtils";
 
 // ハッシュ関数の定義
 const hashContent = (content: string): string => {
@@ -759,7 +761,98 @@ export function EditorProvider({ children }: EditorProviderProps) {
       return editorRef.current;
     }
     console.log("[EditorProvider] 🆕 新しいエディタインスタンスを作成");
-    const newEditor = BlockNoteEditor.create();
+
+    // 画像アップロード関数
+    const uploadFile = async (file: File): Promise<string> => {
+      try {
+        console.log("[EditorProvider] 📤 画像アップロード開始:", file.name);
+
+        // 現在編集中のファイルパスを取得
+        const currentPath = lastProcessedPathRef.current;
+        if (!currentPath) {
+          console.error("[EditorProvider] ❌ 現在のファイルパスが不明です");
+          throw new Error("現在のファイルパスが不明です");
+        }
+
+        // FormDataの作成
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("currentPath", currentPath);
+
+        // 画像アップロードリクエスト
+        const response = await fetch("/api/upload-image", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error("[EditorProvider] ❌ 画像アップロード失敗:", errorData);
+          throw new Error(
+            errorData.error || "画像のアップロードに失敗しました"
+          );
+        }
+
+        const result = await response.json();
+
+        // ファイルの重複がある場合、ユーザーに確認
+        if (result.duplicate) {
+          console.log(
+            "[EditorProvider] ⚠️ ファイルの重複を検出:",
+            result.fileName
+          );
+
+          // ユーザーに確認
+          const confirmOverwrite = window.confirm(result.message);
+
+          if (confirmOverwrite) {
+            console.log("[EditorProvider] 🔄 ファイルを上書きします");
+
+            // 上書き用のFormDataを作成
+            const overwriteFormData = new FormData();
+            overwriteFormData.append("file", file);
+            overwriteFormData.append("currentPath", currentPath);
+            overwriteFormData.append("overwrite", "true");
+
+            // 上書きリクエスト
+            const overwriteResponse = await fetch("/api/upload-image", {
+              method: "POST",
+              body: overwriteFormData,
+            });
+
+            if (!overwriteResponse.ok) {
+              const errorData = await overwriteResponse.json();
+              console.error("[EditorProvider] ❌ 画像上書き失敗:", errorData);
+              throw new Error(errorData.error || "画像の上書きに失敗しました");
+            }
+
+            const overwriteResult = await overwriteResponse.json();
+            console.log("[EditorProvider] ✅ 画像上書き成功:", overwriteResult);
+
+            return overwriteResult.url;
+          } else {
+            console.log(
+              "[EditorProvider] ⏭️ ファイルの上書きをキャンセルしました"
+            );
+            // 既存のファイルのURLを返す
+            return result.url;
+          }
+        }
+
+        console.log("[EditorProvider] ✅ 画像アップロード成功:", result);
+
+        return result.url;
+      } catch (error) {
+        console.error("[EditorProvider] ❌ 画像アップロードエラー:", error);
+        toast.error("画像のアップロードに失敗しました");
+        throw error;
+      }
+    };
+
+    const newEditor = BlockNoteEditor.create({
+      uploadFile,
+    });
+
     editorRef.current = newEditor;
     return newEditor;
   }, []); // 依存配列を空に

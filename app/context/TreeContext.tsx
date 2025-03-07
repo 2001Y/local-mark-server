@@ -6,6 +6,7 @@ import { FileNode } from "../types/file";
 
 interface TreeContextType {
   initialTree: FileNode[];
+  tree: FileNode[];
   updateTree: () => Promise<FileNode[]>;
   isRoot: boolean;
   basePath: string;
@@ -31,16 +32,25 @@ export function TreeProvider({
   const [isRoot, setIsRoot] = useState(true);
   const [basePath, setBasePath] = useState("");
   const [currentPath, setCurrentPath] = useState("");
+  const [tree, setTree] = useState<FileNode[]>(initialTree || []);
 
   // パスが変更されたときにisRootを更新
   useEffect(() => {
     setIsRoot(segments.length === 0);
   }, [segments]);
 
+  // initialTreeが変更されたときにtreeを更新
+  useEffect(() => {
+    if (initialTree && initialTree.length > 0) {
+      setTree(initialTree);
+    }
+  }, [initialTree]);
+
   return (
     <TreeContext.Provider
       value={{
         initialTree,
+        tree,
         updateTree,
         isRoot,
         basePath,
