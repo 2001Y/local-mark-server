@@ -88,7 +88,7 @@ export default async function RootLayout({
       >
         <Providers initialTree={initialTree} updateTree={updateTree}>
           <div className={styles.container}>
-            <SidebarWrapper>{sidebar}</SidebarWrapper>
+            {sidebar}
             <main className={styles.main}>
               <ContextMenuLayout>{children}</ContextMenuLayout>
             </main>
