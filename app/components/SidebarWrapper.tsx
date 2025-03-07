@@ -16,7 +16,7 @@ interface SidebarWrapperProps {
 
 export function SidebarWrapper({ children }: SidebarWrapperProps) {
   const router = useRouter();
-  const { setCurrentPath, tree, updateTree } = useTree();
+  const { setCurrentPath, tree = [], updateTree } = useTree();
 
   const handleFileSelect = (path: string | undefined) => {
     const normalizedPath = normalizePath(path);
@@ -28,7 +28,7 @@ export function SidebarWrapper({ children }: SidebarWrapperProps) {
 
   return (
     <Sidebar
-      tree={tree}
+      tree={tree || []}
       onUpdateTree={updateTree}
       onFileSelect={handleFileSelect}
     />

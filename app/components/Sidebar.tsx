@@ -14,7 +14,11 @@ interface SidebarProps {
   onUpdateTree?: () => void;
 }
 
-export function Sidebar({ tree, onFileSelect, onUpdateTree }: SidebarProps) {
+export function Sidebar({
+  tree = [],
+  onFileSelect,
+  onUpdateTree,
+}: SidebarProps) {
   const { currentPath, isRoot } = useTree();
   const [windowWidth, setWindowWidth] = useState<number>(
     typeof window !== "undefined" ? window.innerWidth : 0
@@ -58,7 +62,7 @@ export function Sidebar({ tree, onFileSelect, onUpdateTree }: SidebarProps) {
         <span className="nav-text">クイックメモ</span>
       </Link>
       <FileTreeClient
-        tree={tree}
+        tree={tree || []}
         onFileSelect={onFileSelect}
         onUpdateTree={onUpdateTree}
         className="sidebar-tree"

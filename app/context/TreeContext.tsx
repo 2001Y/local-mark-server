@@ -19,14 +19,18 @@ const TreeContext = createContext<TreeContextType | null>(null);
 
 interface TreeProviderProps {
   children: React.ReactNode;
-  initialTree: FileNode[];
-  updateTree: () => Promise<FileNode[]>;
+  initialTree?: FileNode[];
+  updateTree?: () => Promise<FileNode[]>;
 }
+
+// デフォルト値
+const defaultTree: FileNode[] = [];
+const defaultUpdateTree = async (): Promise<FileNode[]> => [];
 
 export function TreeProvider({
   children,
-  initialTree,
-  updateTree,
+  initialTree = defaultTree,
+  updateTree = defaultUpdateTree,
 }: TreeProviderProps) {
   const segments = useSelectedLayoutSegments();
   const [isRoot, setIsRoot] = useState(true);
@@ -49,8 +53,8 @@ export function TreeProvider({
   return (
     <TreeContext.Provider
       value={{
-        initialTree,
-        tree,
+        initialTree: initialTree || [],
+        tree: tree || [],
         updateTree,
         isRoot,
         basePath,

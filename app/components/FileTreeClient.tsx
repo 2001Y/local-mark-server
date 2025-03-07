@@ -51,10 +51,11 @@ function TreeNode({ node, level = 0, onFileSelect }: TreeNodeProps) {
   }, [currentPath, node.path]);
 
   return (
-    <div className="tree-node" style={{ paddingLeft: `${level * 1.5}rem` }}>
+    <div className={`tree-node ${isActive ? "active" : ""}`}>
       <div
-        className={`node-content ${isActive ? "active" : ""}`}
+        className={`node-content ${node.type}`}
         onClick={handleClick}
+        style={{ paddingLeft: `${level * 16 + 8}px` }}
       >
         <span className="node-icon">
           {node.type === "directory" ? "📁" : "📄"}
@@ -63,31 +64,34 @@ function TreeNode({ node, level = 0, onFileSelect }: TreeNodeProps) {
         {node.path && <MenuTrigger path={node.path} />}
       </div>
 
-      {node.type === "directory" && isOpen && node.children && (
-        <div className="node-children">
-          {node.children.map((child) => (
-            <TreeNode
-              key={child.path ?? child.name}
-              node={child}
-              level={level + 1}
-              onFileSelect={onFileSelect}
-            />
-          ))}
-        </div>
-      )}
+      {node.type === "directory" &&
+        isOpen &&
+        node.children &&
+        node.children.length > 0 && (
+          <div className="node-children">
+            {node.children.map((child) => (
+              <TreeNode
+                key={child.path ?? child.name}
+                node={child}
+                level={level + 1}
+                onFileSelect={onFileSelect}
+              />
+            ))}
+          </div>
+        )}
 
       <style jsx>{`
         .tree-node {
-          font-size: 0.95rem;
+          font-size: 0.9rem;
         }
         .node-content {
           display: flex;
           align-items: center;
-          gap: 0.5rem;
-          padding: 0.5rem;
+          padding: 6px 8px;
           cursor: pointer;
           border-radius: 4px;
-          transition: background-color 0.2s ease;
+          margin: 2px 0;
+          position: relative;
         }
         .node-content:hover {
           background-color: #f5f5f5;
@@ -97,18 +101,20 @@ function TreeNode({ node, level = 0, onFileSelect }: TreeNodeProps) {
           color: #0066cc;
         }
         .node-icon {
-          flex-shrink: 0;
-          width: 1.5rem;
-          text-align: center;
+          margin-right: 6px;
+          font-size: 1rem;
         }
         .node-name {
           flex: 1;
+          white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
-          white-space: nowrap;
         }
         .node-children {
-          margin-top: 0.25rem;
+          margin-left: 0;
+        }
+        .directory {
+          font-weight: 500;
         }
       `}</style>
     </div>
@@ -116,21 +122,34 @@ function TreeNode({ node, level = 0, onFileSelect }: TreeNodeProps) {
 }
 
 export function FileTreeClient({
-  tree,
+  tree = [],
   onFileSelect,
   onUpdateTree,
   className,
 }: FileTreeClientProps) {
   return (
     <div className={className}>
-      {tree.map((node) => (
-        <TreeNode
-          key={node.path ?? node.name}
-          node={node}
-          onFileSelect={onFileSelect}
-          onUpdateTree={onUpdateTree}
-        />
-      ))}
+      {tree && tree.length > 0 ? (
+        tree.map((node) => (
+          <TreeNode
+            key={node.path ?? node.name}
+            node={node}
+            onFileSelect={onFileSelect}
+            onUpdateTree={onUpdateTree}
+          />
+        ))
+      ) : (
+        <div className="empty-tree">ファイルがありません</div>
+      )}
+
+      <style jsx>{`
+        .empty-tree {
+          padding: 1rem;
+          color: #666;
+          font-style: italic;
+          text-align: center;
+        }
+      `}</style>
     </div>
   );
 }
