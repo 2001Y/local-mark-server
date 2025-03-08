@@ -11,6 +11,7 @@ import {
   generateUrl,
 } from "../lib/pathUtils";
 import { useContextMenu } from "../context/ContextMenuContext";
+import { useDebugError } from "../hooks/useDebugError";
 
 interface FileTreeClientProps {
   tree: FileNode[];
@@ -127,6 +128,13 @@ export function FileTreeClient({
   onUpdateTree,
   className,
 }: FileTreeClientProps) {
+  // デバッグ用のエラー検出
+  useDebugError(
+    "FileTreeClient: tree is undefined or not an array",
+    !Array.isArray(tree),
+    { tree }
+  );
+
   return (
     <div className={className}>
       {tree && tree.length > 0 ? (

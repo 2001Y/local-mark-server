@@ -224,14 +224,66 @@ export function toFsPath(inputPath: string): string {
 }
 
 /**
- * パスをURL用に変換します
+ * ファイルシステムパスをURL用のパスに変換します
  */
 export function toUrlPath(inputPath: string): string {
-  const normalizedPath = normalizePath(inputPath);
-  return normalizedPath
-    .split(path.sep)
-    .map((segment) => encodeURIComponent(segment))
-    .join("/");
+  console.log(`[toUrlPath] 入力パス: "${inputPath}", 型: ${typeof inputPath}`);
+
+  try {
+    if (!inputPath) {
+      console.log(`[toUrlPath] 入力パスなし、空文字を返します`);
+      return "/";
+    }
+
+    const normalizedPath = normalizePath(inputPath);
+    console.log(`[toUrlPath] 正規化後: "${normalizedPath}"`);
+
+    // パスをセグメントに分割
+    const segments = normalizedPath.split(path.sep).filter(Boolean);
+    console.log(`[toUrlPath] セグメント: ${JSON.stringify(segments)}`);
+
+    if (!segments || segments.length === 0) {
+      console.log(`[toUrlPath] セグメントなし、ルートを返します`);
+      return "/";
+    }
+
+    // 各セグメントをエンコード
+    const encodedPath = segments
+      .map((segment) => {
+        if (!segment) {
+          console.warn(`[toUrlPath] 空のセグメントを検出しました`);
+          return "";
+        }
+        try {
+          const encoded = encodeURIComponent(segment);
+          console.log(`[toUrlPath] エンコード: "${segment}" => "${encoded}"`);
+          return encoded;
+        } catch (error) {
+          console.error(
+            `[toUrlPath] セグメントのエンコード中にエラー: "${segment}"`,
+            error
+          );
+          // エラーが発生した場合は元のセグメントを返す
+          return segment;
+        }
+      })
+      .filter(Boolean) // 空の文字列を除去
+      .join("/");
+
+    console.log(`[toUrlPath] 最終結果: "/${encodedPath}"`);
+    return `/${encodedPath}`;
+  } catch (error) {
+    console.error(`[toUrlPath] エラー発生:`, error);
+    console.error(`[toUrlPath] エラーの詳細:`, {
+      inputPath,
+      errorType: error instanceof Error ? "Error" : typeof error,
+      errorMessage: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+
+    // エラーが発生した場合はルートを返す
+    return "/";
+  }
 }
 
 /**
@@ -298,7 +350,9 @@ export function generateTreeState(inputPath: string): {
   currentPath: string;
   basePath: string;
 } {
-  console.log(`[generateTreeState] 入力パス: "${inputPath}"`);
+  console.log(
+    `[generateTreeState] 入力パス: "${inputPath}", 型: ${typeof inputPath}`
+  );
 
   if (!inputPath || inputPath === "") {
     const defaultPath = normalizeDefaultPath();
@@ -310,52 +364,76 @@ export function generateTreeState(inputPath: string): {
   }
 
   const normalizedPath = normalizePath(inputPath);
-  const pathType = getPathType(normalizedPath);
-  const defaultPath = normalizeDefaultPath();
+  console.log(`[generateTreeState] 正規化後: "${normalizedPath}"`);
 
+  const pathType = getPathType(normalizedPath);
+  console.log(`[generateTreeState] パスタイプ: "${pathType}"`);
+
+  const defaultPath = normalizeDefaultPath();
+  console.log(`[generateTreeState] デフォルトパス: "${defaultPath}"`);
+
+  let result: { currentPath: string; basePath: string };
   switch (pathType) {
     case "root":
-      return {
+      result = {
         currentPath: defaultPath + "/",
         basePath: defaultPath,
       };
+      break;
     case "directory": {
       const cleanPath = cleanPathForComparison(normalizedPath);
+      console.log(
+        `[generateTreeState] directory - クリーンパス: "${cleanPath}"`
+      );
       if (!cleanPath || cleanPath === "") {
-        return {
+        result = {
           currentPath: defaultPath + "/",
           basePath: defaultPath,
         };
+      } else {
+        result = {
+          currentPath: cleanPath + "/",
+          basePath: cleanPath,
+        };
       }
-      return {
-        currentPath: cleanPath + "/",
-        basePath: cleanPath,
-      };
+      break;
     }
     case "file": {
       const cleanPath = cleanPathForComparison(normalizedPath);
+      console.log(`[generateTreeState] file - クリーンパス: "${cleanPath}"`);
       if (!cleanPath || cleanPath === "") {
-        return {
+        result = {
           currentPath: defaultPath + "/",
           basePath: defaultPath,
         };
+      } else {
+        const lastSlashIndex = cleanPath.lastIndexOf("/");
+        console.log(
+          `[generateTreeState] file - 最後のスラッシュ位置: ${lastSlashIndex}`
+        );
+        const basePath =
+          lastSlashIndex >= 0
+            ? cleanPath.substring(0, lastSlashIndex + 1)
+            : defaultPath;
+        console.log(`[generateTreeState] file - ベースパス: "${basePath}"`);
+        result = {
+          currentPath: cleanPath,
+          basePath: basePath || defaultPath,
+        };
       }
-      const lastSlashIndex = cleanPath.lastIndexOf("/");
-      const basePath =
-        lastSlashIndex >= 0
-          ? cleanPath.substring(0, lastSlashIndex + 1)
-          : defaultPath;
-      return {
-        currentPath: cleanPath,
-        basePath: basePath || defaultPath,
-      };
+      break;
     }
     default:
-      return {
+      result = {
         currentPath: defaultPath + "/",
         basePath: defaultPath,
       };
   }
+
+  console.log(
+    `[generateTreeState] 結果: currentPath="${result.currentPath}", basePath="${result.basePath}"`
+  );
+  return result;
 }
 
 /**
