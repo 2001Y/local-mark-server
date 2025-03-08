@@ -128,17 +128,20 @@ export function FileTreeClient({
   onUpdateTree,
   className,
 }: FileTreeClientProps) {
-  // デバッグ用のエラー検出
+  // デバッグ用のエラー検出（条件を厳密に確認）
   useDebugError(
     "FileTreeClient: tree is undefined or not an array",
-    !Array.isArray(tree),
-    { tree }
+    tree === undefined || (tree !== null && !Array.isArray(tree)),
+    { tree, type: typeof tree }
   );
+
+  // treeが配列でない場合は空配列として扱う
+  const safeTree = Array.isArray(tree) ? tree : [];
 
   return (
     <div className={className}>
-      {tree && tree.length > 0 ? (
-        tree.map((node) => (
+      {safeTree.length > 0 ? (
+        safeTree.map((node) => (
           <TreeNode
             key={node.path ?? node.name}
             node={node}

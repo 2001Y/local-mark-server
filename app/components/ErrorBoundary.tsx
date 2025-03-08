@@ -18,10 +18,16 @@ interface State {
  * 子コンポーネントでエラーが発生した場合にフォールバックUIを表示します
  */
 export class ErrorBoundary extends Component<Props, State> {
-  public state: State = {
-    hasError: false,
-    error: null,
-  };
+  constructor(props: Props) {
+    super(props);
+    this.state = {
+      hasError: false,
+      error: null,
+    };
+
+    // メソッドをバインド
+    this.resetErrorBoundary = this.resetErrorBoundary.bind(this);
+  }
 
   public static getDerivedStateFromError(error: Error): State {
     // エラーが発生した場合にステートを更新
@@ -33,6 +39,11 @@ export class ErrorBoundary extends Component<Props, State> {
     console.error(
       this.props.errorMessage || "コンポーネントでエラーが発生しました"
     );
+  }
+
+  // エラー状態をリセットするメソッド
+  public resetErrorBoundary(): void {
+    this.setState({ hasError: false, error: null });
   }
 
   public render(): ReactNode {
@@ -54,11 +65,7 @@ export class ErrorBoundary extends Component<Props, State> {
             <summary>詳細を表示</summary>
             <pre>{this.state.error?.toString()}</pre>
           </details>
-          <button
-            onClick={() => this.setState({ hasError: false, error: null })}
-          >
-            再試行
-          </button>
+          <button onClick={this.resetErrorBoundary}>再試行</button>
 
           <style jsx>{`
             .error-boundary {
