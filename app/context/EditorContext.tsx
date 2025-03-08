@@ -880,6 +880,16 @@ export function EditorProvider({ children }: EditorProviderProps) {
           console.log(
             "[EditorProvider] モックエディタのonEditorContentChangeが呼ばれました"
           );
+          try {
+            if (typeof callback === "function") {
+              callback();
+            }
+          } catch (callbackError) {
+            console.error(
+              "[EditorProvider] コールバック実行エラー:",
+              callbackError
+            );
+          }
           return () => {}; // アンサブスクライブ関数
         },
         blocksToMarkdownLossy: async (blocks: Block[]) => {
@@ -888,6 +898,12 @@ export function EditorProvider({ children }: EditorProviderProps) {
           );
           return "";
         },
+        // 追加のモックメソッド
+        getBlock: () => null,
+        updateBlock: () => {},
+        removeBlock: () => {},
+        insertBlock: () => {},
+        replaceBlocks: () => {},
         // 他の必要なメソッドをモック
       };
       editorRef.current = mockEditor as any;
@@ -899,6 +915,22 @@ export function EditorProvider({ children }: EditorProviderProps) {
   const editor = useMemo(() => {
     // サーバーサイドでは実行しない
     if (typeof window === "undefined") return null;
+
+    // Function.prototype.callが存在することを確認
+    if (typeof Function.prototype.call !== "function") {
+      console.error(
+        "[EditorProvider] ⚠️ Function.prototype.callが存在しません"
+      );
+      // Function.prototype.callを再定義
+      Function.prototype.call = function (thisArg, ...args) {
+        const fn = this;
+        thisArg = thisArg || window;
+        thisArg._fn = fn;
+        const result = thisArg._fn(...args);
+        delete thisArg._fn;
+        return result;
+      };
+    }
 
     console.log("[EditorProvider] 🎨 エディタインスタンスの作成/取得");
     if (editorRef.current) {

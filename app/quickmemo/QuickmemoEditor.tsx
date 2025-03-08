@@ -70,7 +70,20 @@ export function QuickmemoEditor() {
     };
 
     // エディタの変更を監視
-    editor.onEditorContentChange(handleEditorUpdate);
+    try {
+      if (editor && typeof editor.onEditorContentChange === "function") {
+        editor.onEditorContentChange(handleEditorUpdate);
+      } else {
+        console.error(
+          "[QuickmemoEditor] エディタまたはonEditorContentChangeメソッドが存在しません"
+        );
+      }
+    } catch (error) {
+      console.error(
+        "[QuickmemoEditor] エディタの変更イベント設定エラー:",
+        error
+      );
+    }
 
     // クリーンアップ関数
     return () => {

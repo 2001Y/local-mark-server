@@ -10,24 +10,9 @@ const nextConfig = {
       bodySizeLimit: "2mb",
     },
   },
-  webpack: (config, { isServer, dev }) => {
+  webpack: (config, { isServer }) => {
     if (!isServer) {
       config.output.filename = "static/chunks/[name].js";
-
-      if (!dev) {
-        config.module.rules.push({
-          test: /node_modules\/@blocknote\/(core|react|mantine)/,
-          sideEffects: false,
-        });
-
-        config.optimization.checkWasmTypes = false;
-
-        config.resolve.fallback = {
-          ...config.resolve.fallback,
-          fs: false,
-          path: false,
-        };
-      }
     }
     return config;
   },

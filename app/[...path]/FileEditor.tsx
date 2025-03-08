@@ -10,7 +10,7 @@
 
 "use client";
 
-import { useCallback, useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef, Component } from "react";
 import { Block, BlockNoteEditor } from "@blocknote/core";
 import { BlockNoteView } from "@blocknote/mantine";
 import { MantineProvider, createTheme } from "@mantine/core";
@@ -18,6 +18,32 @@ import { toast } from "sonner";
 import { useEditor } from "@/app/context/EditorContext";
 import { debounce } from "lodash";
 import { DragDropHandler } from "@/app/components/DragDropHandler";
+
+// 独自のErrorBoundaryコンポーネント
+class ErrorBoundary extends Component<
+  { children: React.ReactNode; fallback: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode; fallback: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(_: Error) {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error("[ErrorBoundary] エラーが発生しました:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback;
+    }
+    return this.props.children;
+  }
+}
 
 interface FileEditorProps {
   filePath: string;
@@ -233,7 +259,17 @@ export function FileEditor({ filePath, initialContent }: FileEditorProps) {
     };
 
     // エディタの変更イベントをリッスン
-    editor.onEditorContentChange(onChange);
+    try {
+      if (editor && typeof editor.onEditorContentChange === "function") {
+        editor.onEditorContentChange(onChange);
+      } else {
+        console.error(
+          "[FileEditor] エディタまたはonEditorContentChangeメソッドが存在しません"
+        );
+      }
+    } catch (error) {
+      console.error("[FileEditor] エディタの変更イベント設定エラー:", error);
+    }
 
     // クリーンアップ関数
     return () => {
@@ -430,11 +466,20 @@ export function FileEditor({ filePath, initialContent }: FileEditorProps) {
     );
   }
 
+  // BlockNoteViewをエラーハンドリング付きでレンダリング
   return (
     <DragDropHandler>
       <div className="editor-container" ref={editorContainerRef}>
         <MantineProvider theme={createTheme({})} defaultColorScheme="light">
-          <BlockNoteView editor={editor} ref={editorViewRef} />
+          <ErrorBoundary
+            fallback={
+              <div className="editor-error">
+                エディタのレンダリングに失敗しました
+              </div>
+            }
+          >
+            <BlockNoteView editor={editor} ref={editorViewRef} />
+          </ErrorBoundary>
         </MantineProvider>
         <style jsx>{`
           .editor-container {
