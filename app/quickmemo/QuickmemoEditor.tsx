@@ -21,6 +21,18 @@ export function QuickmemoEditor() {
   const [isLoading, setIsLoading] = useState(true);
   const contentRef = useRef<string>("");
 
+  // エディタオブジェクトの状態をログに出力
+  useEffect(() => {
+    console.log("[QuickmemoEditor] Editor object:", editor);
+    if (editor) {
+      console.log("[QuickmemoEditor] Editor methods:", Object.keys(editor));
+      console.log(
+        "[QuickmemoEditor] Editor prototype:",
+        Object.getPrototypeOf(editor)
+      );
+    }
+  }, [editor]);
+
   // コンポーネントのマウント時にlocalStorageから内容を読み込む
   useEffect(() => {
     const savedContent = localStorage.getItem("unsaved_content") || "";

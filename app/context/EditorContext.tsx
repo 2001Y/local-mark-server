@@ -853,6 +853,16 @@ export function EditorProvider({ children }: EditorProviderProps) {
       uploadFile,
     });
 
+    console.log("[EditorProvider] BlockNoteEditor created:", newEditor);
+    console.log(
+      "[EditorProvider] BlockNoteEditor methods:",
+      Object.keys(newEditor)
+    );
+    console.log(
+      "[EditorProvider] BlockNoteEditor prototype:",
+      Object.getPrototypeOf(newEditor)
+    );
+
     editorRef.current = newEditor;
     return newEditor;
   }, []); // 依存配列を空に

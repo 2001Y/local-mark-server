@@ -23,6 +23,8 @@ export function Providers({
   initialTree = defaultTree,
   updateTree = defaultUpdateTree,
 }: ProvidersProps) {
+  console.log("[Providers] Rendering with initialTree:", initialTree?.length);
+
   return (
     <>
       <Toaster />

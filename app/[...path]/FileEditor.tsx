@@ -52,6 +52,18 @@ export function FileEditor({ filePath, initialContent }: FileEditorProps) {
   // エディタコンテナのref
   const editorContainerRef = useRef<HTMLDivElement>(null);
 
+  // エディタオブジェクトの状態をログに出力
+  useEffect(() => {
+    console.log("[FileEditor] Editor object:", editor);
+    if (editor) {
+      console.log("[FileEditor] Editor methods:", Object.keys(editor));
+      console.log(
+        "[FileEditor] Editor prototype:",
+        Object.getPrototypeOf(editor)
+      );
+    }
+  }, [editor]);
+
   // コンポーネントがマウントされたときにprevFilePathRefを更新
   useEffect(() => {
     prevFilePathRef.current = filePath;
@@ -341,6 +353,9 @@ export function FileEditor({ filePath, initialContent }: FileEditorProps) {
   }, [editorState.blocks, convertToMarkdown]);
 
   if (!editor) return null;
+
+  console.log("[FileEditor] Rendering BlockNoteView with editor:", editor);
+  console.log("[FileEditor] Editor view ref:", editorViewRef);
 
   return (
     <DragDropHandler>
