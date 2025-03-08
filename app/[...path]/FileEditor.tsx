@@ -94,6 +94,18 @@ export function FileEditor({ filePath, initialContent }: FileEditorProps) {
 
       try {
         // エディタからブロックを取得
+        // topLevelBlocksが存在するか確認
+        if (!editor.topLevelBlocks) {
+          console.error(
+            `[FileEditor] topLevelBlocksが存在しません: ${filePath}`
+          );
+          setEditorState((prev) => ({
+            ...prev,
+            isSaving: false,
+          }));
+          return;
+        }
+
         const blocks = editor.topLevelBlocks;
         console.log(
           `[FileEditor] ブロック取得: count=${blocks.length}, path=${filePath}`
@@ -326,12 +338,28 @@ export function FileEditor({ filePath, initialContent }: FileEditorProps) {
     };
   }, [filePath]); // loadContentを依存配列から削除
 
-  // ブロックからMarkdownへの変換を最適化
+  // Markdown変換関数
   const convertToMarkdown = useCallback(
     async (blocks: Block[]) => {
-      if (!editor || !isMounted.current || blocks.length === 0) return;
+      if (!editor) {
+        console.warn("[FileEditor] エディタがnullのため変換をスキップします");
+        return;
+      }
+
+      if (!blocks || blocks.length === 0) {
+        console.warn("[FileEditor] ブロックが空のため変換をスキップします");
+        return;
+      }
 
       try {
+        // blocksToMarkdownLossyメソッドが存在するか確認
+        if (typeof editor.blocksToMarkdownLossy !== "function") {
+          console.error(
+            "[FileEditor] blocksToMarkdownLossyメソッドが存在しません"
+          );
+          throw new Error("blocksToMarkdownLossyメソッドが見つかりません");
+        }
+
         const markdown = await editor.blocksToMarkdownLossy(blocks);
         setEditorState((prev) => ({
           ...prev,
@@ -342,6 +370,39 @@ export function FileEditor({ filePath, initialContent }: FileEditorProps) {
           "[FileEditor] Error converting blocks to markdown:",
           error
         );
+        // エラー時にはシンプルな変換を試みる
+        try {
+          const simpleMarkdown = blocks
+            .map((block) => {
+              if (block.content) {
+                // contentの型に応じて処理を分ける
+                if (Array.isArray(block.content)) {
+                  return block.content
+                    .filter((c) => c && typeof c === "object" && "text" in c)
+                    .map((c) => (c as any).text || "")
+                    .join("");
+                } else if (
+                  typeof block.content === "object" &&
+                  block.content !== null
+                ) {
+                  // オブジェクトの場合は文字列に変換を試みる
+                  return String(block.content);
+                }
+              }
+              return "";
+            })
+            .join("\n\n");
+
+          setEditorState((prev) => ({
+            ...prev,
+            content: simpleMarkdown,
+          }));
+        } catch (fallbackError) {
+          console.error(
+            "[FileEditor] フォールバック変換にも失敗:",
+            fallbackError
+          );
+        }
       }
     },
     [editor]
@@ -352,10 +413,22 @@ export function FileEditor({ filePath, initialContent }: FileEditorProps) {
     convertToMarkdown(editorState.blocks);
   }, [editorState.blocks, convertToMarkdown]);
 
-  if (!editor) return null;
+  if (!editor) {
+    console.warn("[FileEditor] エディタがnullです");
+    return <div className="editor-loading">エディタを読み込み中...</div>;
+  }
 
   console.log("[FileEditor] Rendering BlockNoteView with editor:", editor);
   console.log("[FileEditor] Editor view ref:", editorViewRef);
+
+  // エディタのメソッドが存在するか確認
+  const editorMethods = Object.keys(editor);
+  if (!editorMethods.includes("topLevelBlocks")) {
+    console.error("[FileEditor] エディタにtopLevelBlocksメソッドがありません");
+    return (
+      <div className="editor-error">エディタの初期化に問題が発生しました</div>
+    );
+  }
 
   return (
     <DragDropHandler>

@@ -48,6 +48,11 @@ export function QuickmemoEditor() {
     const handleEditorUpdate = () => {
       try {
         // エディタの内容をMarkdown形式で取得
+        if (!editor.topLevelBlocks) {
+          console.error("[QuickmemoEditor] topLevelBlocksが存在しません");
+          return;
+        }
+
         const blocks = editor.topLevelBlocks;
         if (blocks.length === 0) return;
 

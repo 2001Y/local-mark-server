@@ -751,18 +751,10 @@ export function EditorProvider({ children }: EditorProviderProps) {
   );
 
   // エディタインスタンスの作成を最適化
-  const editor = useMemo(() => {
-    // サーバーサイドでは実行しない
-    if (typeof window === "undefined") return null;
+  const createEditor = useCallback(() => {
+    console.log("[EditorProvider] エディタを作成します");
 
-    console.log("[EditorProvider] 🎨 エディタインスタンスの作成/取得");
-    if (editorRef.current) {
-      console.log("[EditorProvider] ♻️ 既存のエディタインスタンスを再利用");
-      return editorRef.current;
-    }
-    console.log("[EditorProvider] 🆕 新しいエディタインスタンスを作成");
-
-    // 画像アップロード関数
+    // ファイルアップロード処理
     const uploadFile = async (file: File): Promise<string> => {
       try {
         console.log("[EditorProvider] 📤 画像アップロード開始:", file.name);
@@ -849,23 +841,74 @@ export function EditorProvider({ children }: EditorProviderProps) {
       }
     };
 
-    const newEditor = BlockNoteEditor.create({
-      uploadFile,
-    });
+    try {
+      // BlockNoteEditorの作成前にグローバルオブジェクトの状態を確認
+      if (typeof window !== "undefined") {
+        console.log("[EditorProvider] window.document:", !!window.document);
+      }
 
-    console.log("[EditorProvider] BlockNoteEditor created:", newEditor);
-    console.log(
-      "[EditorProvider] BlockNoteEditor methods:",
-      Object.keys(newEditor)
-    );
-    console.log(
-      "[EditorProvider] BlockNoteEditor prototype:",
-      Object.getPrototypeOf(newEditor)
-    );
+      const newEditor = BlockNoteEditor.create({
+        uploadFile,
+      });
 
-    editorRef.current = newEditor;
-    return newEditor;
+      console.log("[EditorProvider] BlockNoteEditor created:", newEditor);
+      console.log(
+        "[EditorProvider] BlockNoteEditor methods:",
+        Object.keys(newEditor)
+      );
+      console.log(
+        "[EditorProvider] BlockNoteEditor prototype:",
+        Object.getPrototypeOf(newEditor)
+      );
+
+      // エディタのメソッドが存在するか確認
+      if (!newEditor.topLevelBlocks) {
+        console.error("[EditorProvider] ⚠️ topLevelBlocksが存在しません");
+        throw new Error(
+          "エディタの初期化に失敗しました: topLevelBlocksが見つかりません"
+        );
+      }
+
+      editorRef.current = newEditor;
+      return newEditor;
+    } catch (error) {
+      console.error("[EditorProvider] BlockNoteEditor作成エラー:", error);
+      // エラーが発生した場合でもnullを返さず、最小限の機能を持つモックエディタを返す
+      const mockEditor = {
+        topLevelBlocks: [],
+        onEditorContentChange: (callback: () => void) => {
+          console.log(
+            "[EditorProvider] モックエディタのonEditorContentChangeが呼ばれました"
+          );
+          return () => {}; // アンサブスクライブ関数
+        },
+        blocksToMarkdownLossy: async (blocks: Block[]) => {
+          console.log(
+            "[EditorProvider] モックエディタのblocksToMarkdownLossyが呼ばれました"
+          );
+          return "";
+        },
+        // 他の必要なメソッドをモック
+      };
+      editorRef.current = mockEditor as any;
+      return mockEditor as any;
+    }
   }, []); // 依存配列を空に
+
+  // エディタインスタンスの初期化
+  const editor = useMemo(() => {
+    // サーバーサイドでは実行しない
+    if (typeof window === "undefined") return null;
+
+    console.log("[EditorProvider] 🎨 エディタインスタンスの作成/取得");
+    if (editorRef.current) {
+      console.log("[EditorProvider] ♻️ 既存のエディタインスタンスを再利用");
+      return editorRef.current;
+    }
+
+    console.log("[EditorProvider] 🆕 新しいエディタインスタンスを作成");
+    return createEditor();
+  }, [createEditor]);
 
   const contextValue: EditorContextType = {
     editor: editor,
