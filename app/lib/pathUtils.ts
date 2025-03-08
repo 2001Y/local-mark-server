@@ -126,6 +126,13 @@ export function normalizePath(inputPath: string | undefined): string {
     return defaultPath;
   }
 
+  // 空のパスの場合はデフォルトパスを返す
+  if (cleanPath === "") {
+    const defaultPath = normalizeDefaultPath();
+    console.log(`[normalizePath] 空パスと判定: "${defaultPath}"`);
+    return defaultPath;
+  }
+
   // 絶対パスの場合は先頭の/を保持
   if (withoutDuplicateSlashes.startsWith("/")) {
     // パスセパレータを正規化
@@ -231,12 +238,19 @@ export function toUrlPath(inputPath: string): string {
  * パスの種類を判定します
  */
 export function getPathType(
-  path: string | string[]
+  path: string | string[] | undefined
 ): "root" | "file" | "directory" {
+  console.log(`[getPathType] 入力パス: "${path}"`);
+
+  if (!path) return "root";
+
   if (Array.isArray(path)) {
     if (path.length === 0) return "root";
-    return path[path.length - 1].includes(".") ? "file" : "directory";
+    const lastSegment = path[path.length - 1];
+    if (!lastSegment) return "directory";
+    return lastSegment.includes(".") ? "file" : "directory";
   }
+
   if (path === "" || path === "/") return "root";
   return path.includes(".") ? "file" : "directory";
 }
@@ -284,6 +298,17 @@ export function generateTreeState(inputPath: string): {
   currentPath: string;
   basePath: string;
 } {
+  console.log(`[generateTreeState] 入力パス: "${inputPath}"`);
+
+  if (!inputPath || inputPath === "") {
+    const defaultPath = normalizeDefaultPath();
+    console.log(`[generateTreeState] 空パス、デフォルト使用: "${defaultPath}"`);
+    return {
+      currentPath: defaultPath + "/",
+      basePath: defaultPath,
+    };
+  }
+
   const normalizedPath = normalizePath(inputPath);
   const pathType = getPathType(normalizedPath);
   const defaultPath = normalizeDefaultPath();
@@ -296,6 +321,12 @@ export function generateTreeState(inputPath: string): {
       };
     case "directory": {
       const cleanPath = cleanPathForComparison(normalizedPath);
+      if (!cleanPath || cleanPath === "") {
+        return {
+          currentPath: defaultPath + "/",
+          basePath: defaultPath,
+        };
+      }
       return {
         currentPath: cleanPath + "/",
         basePath: cleanPath,
@@ -303,7 +334,17 @@ export function generateTreeState(inputPath: string): {
     }
     case "file": {
       const cleanPath = cleanPathForComparison(normalizedPath);
-      const basePath = cleanPath.substring(0, cleanPath.lastIndexOf("/") + 1);
+      if (!cleanPath || cleanPath === "") {
+        return {
+          currentPath: defaultPath + "/",
+          basePath: defaultPath,
+        };
+      }
+      const lastSlashIndex = cleanPath.lastIndexOf("/");
+      const basePath =
+        lastSlashIndex >= 0
+          ? cleanPath.substring(0, lastSlashIndex + 1)
+          : defaultPath;
       return {
         currentPath: cleanPath,
         basePath: basePath || defaultPath,
