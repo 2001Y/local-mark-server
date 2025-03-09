@@ -89,6 +89,7 @@ export function EditorProvider({ children }: EditorProviderProps) {
   const [cachedBlocks, setCachedBlocksState] = useState<
     Map<string, BlockNotePackage.Block[]>
   >(new Map());
+  const [error, setError] = useState<Error | null>(null);
 
   // すべてのrefをuseRefで最適化
   const onChangeRef = useRef<(() => void) | undefined>();
@@ -755,111 +756,97 @@ export function EditorProvider({ children }: EditorProviderProps) {
     [setCachedBlocksState]
   );
 
-  // エディタインスタンスの作成を最適化
-  const createEditor = useCallback(() => {
-    console.log("[EditorProvider] エディタを作成します");
+  // ファイルアップロード処理
+  const uploadFile = async (file: File): Promise<string> => {
+    try {
+      console.log("[EditorProvider] 📤 画像アップロード開始:", file.name);
 
-    // ファイルアップロード処理
-    const uploadFile = async (file: File): Promise<string> => {
-      try {
-        console.log("[EditorProvider] 📤 画像アップロード開始:", file.name);
-
-        // 現在編集中のファイルパスを取得
-        const currentPath = lastProcessedPathRef.current;
-        if (!currentPath) {
-          console.error("[EditorProvider] ❌ 現在のファイルパスが不明です");
-          throw new Error("現在のファイルパスが不明です");
-        }
-
-        // FormDataの作成
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("currentPath", currentPath);
-
-        // 画像アップロードリクエスト
-        const response = await fetch("/api/upload-image", {
-          method: "POST",
-          body: formData,
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          console.error("[EditorProvider] ❌ 画像アップロード失敗:", errorData);
-          throw new Error(
-            errorData.error || "画像のアップロードに失敗しました"
-          );
-        }
-
-        const result = await response.json();
-
-        // ファイルの重複がある場合、ユーザーに確認
-        if (result.duplicate) {
-          console.log(
-            "[EditorProvider] ⚠️ ファイルの重複を検出:",
-            result.fileName
-          );
-
-          // ユーザーに確認
-          const confirmOverwrite = window.confirm(result.message);
-
-          if (confirmOverwrite) {
-            console.log("[EditorProvider] 🔄 ファイルを上書きします");
-
-            // 上書き用のFormDataを作成
-            const overwriteFormData = new FormData();
-            overwriteFormData.append("file", file);
-            overwriteFormData.append("currentPath", currentPath);
-            overwriteFormData.append("overwrite", "true");
-
-            // 上書きリクエスト
-            const overwriteResponse = await fetch("/api/upload-image", {
-              method: "POST",
-              body: overwriteFormData,
-            });
-
-            if (!overwriteResponse.ok) {
-              const errorData = await overwriteResponse.json();
-              console.error("[EditorProvider] ❌ 画像上書き失敗:", errorData);
-              throw new Error(errorData.error || "画像の上書きに失敗しました");
-            }
-
-            const overwriteResult = await overwriteResponse.json();
-            console.log("[EditorProvider] ✅ 画像上書き成功:", overwriteResult);
-
-            return overwriteResult.url;
-          } else {
-            console.log(
-              "[EditorProvider] ⏭️ ファイルの上書きをキャンセルしました"
-            );
-            // 既存のファイルのURLを返す
-            return result.url;
-          }
-        }
-
-        console.log("[EditorProvider] ✅ 画像アップロード成功:", result);
-
-        return result.url;
-      } catch (error) {
-        console.error("[EditorProvider] ❌ 画像アップロードエラー:", error);
-        toast.error("画像のアップロードに失敗しました");
-        throw error;
+      // 現在編集中のファイルパスを取得
+      const currentPath = lastProcessedPathRef.current;
+      if (!currentPath) {
+        console.error("[EditorProvider] ❌ 現在のファイルパスが不明です");
+        throw new Error("現在のファイルパスが不明です");
       }
-    };
+
+      // FormDataの作成
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("currentPath", currentPath);
+
+      // 画像アップロードリクエスト
+      const response = await fetch("/api/upload-image", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("[EditorProvider] ❌ 画像アップロード失敗:", errorData);
+        throw new Error(errorData.error || "画像のアップロードに失敗しました");
+      }
+
+      const result = await response.json();
+
+      // ファイルが既に存在する場合の処理
+      if (result.exists) {
+        console.log(
+          "[EditorProvider] ⚠️ ファイルが既に存在します:",
+          result.message
+        );
+
+        // ユーザーに確認
+        const confirmOverwrite = window.confirm(result.message);
+
+        if (confirmOverwrite) {
+          console.log("[EditorProvider] 🔄 ファイルを上書きします");
+
+          // 上書き用のFormDataを作成
+          const overwriteFormData = new FormData();
+          overwriteFormData.append("file", file);
+          overwriteFormData.append("currentPath", currentPath);
+          overwriteFormData.append("overwrite", "true");
+
+          // 上書きリクエスト
+          const overwriteResponse = await fetch("/api/upload-image", {
+            method: "POST",
+            body: overwriteFormData,
+          });
+
+          if (!overwriteResponse.ok) {
+            const errorData = await overwriteResponse.json();
+            console.error("[EditorProvider] ❌ 画像上書き失敗:", errorData);
+            throw new Error(errorData.error || "画像の上書きに失敗しました");
+          }
+
+          const overwriteResult = await overwriteResponse.json();
+          console.log("[EditorProvider] ✅ 画像上書き成功:", overwriteResult);
+
+          return overwriteResult.url;
+        } else {
+          console.log(
+            "[EditorProvider] ⏭️ ファイルの上書きをキャンセルしました"
+          );
+          // 既存のファイルのURLを返す
+          return result.url;
+        }
+      }
+
+      console.log("[EditorProvider] ✅ 画像アップロード成功:", result);
+
+      return result.url;
+    } catch (error) {
+      console.error("[EditorProvider] ❌ 画像アップロードエラー:", error);
+      toast.error("画像のアップロードに失敗しました");
+      throw error;
+    }
+  };
+
+  // エディタインスタンスの初期化
+  const editor = useMemo(() => {
+    // サーバーサイドでは実行しない
+    if (typeof window === "undefined") return null;
 
     try {
-      // BlockNoteEditorの作成前にグローバルオブジェクトの状態を確認
-      if (typeof window !== "undefined") {
-        console.log("[EditorProvider] window.document:", !!window.document);
-        console.log(
-          "[EditorProvider] Function.prototype.call:",
-          typeof Function.prototype.call
-        );
-        console.log(
-          "[EditorProvider] Function.prototype.apply:",
-          typeof Function.prototype.apply
-        );
-      }
-
       // BlockNotePackageの内容を確認
       console.log(
         "[EditorProvider] BlockNotePackage:",
@@ -898,287 +885,16 @@ export function EditorProvider({ children }: EditorProviderProps) {
       });
 
       console.log("[EditorProvider] BlockNoteEditor created:", newEditor);
-      console.log(
-        "[EditorProvider] BlockNoteEditor methods:",
-        Object.keys(newEditor)
-      );
-      console.log(
-        "[EditorProvider] BlockNoteEditor prototype:",
-        Object.getPrototypeOf(newEditor)
-      );
-
-      // エディタのメソッドが存在するか確認
-      if (!newEditor.topLevelBlocks) {
-        console.error("[EditorProvider] ⚠️ topLevelBlocksが存在しません");
-        throw new Error(
-          "エディタの初期化に失敗しました: topLevelBlocksが見つかりません"
-        );
-      }
-
-      editorRef.current = newEditor;
       return newEditor;
     } catch (error) {
-      console.error("[EditorProvider] BlockNoteEditor作成エラー:", error);
-      // エラーが発生した場合でもnullを返さず、最小限の機能を持つモックエディタを返す
-      const mockEditor = {
-        topLevelBlocks: [],
-        onEditorContentChange: (callback: () => void) => {
-          console.log(
-            "[EditorProvider] モックエディタのonEditorContentChangeが呼ばれました"
-          );
-          try {
-            if (typeof callback === "function") {
-              callback();
-            }
-          } catch (callbackError) {
-            console.error(
-              "[EditorProvider] コールバック実行エラー:",
-              callbackError
-            );
-          }
-          return () => {}; // アンサブスクライブ関数
-        },
-        blocksToMarkdownLossy: async (blocks: BlockNotePackage.Block[]) => {
-          console.log(
-            "[EditorProvider] モックエディタのblocksToMarkdownLossyが呼ばれました"
-          );
-          return "";
-        },
-        // 追加のモックメソッド
-        getBlock: () => null,
-        updateBlock: () => {},
-        removeBlock: () => {},
-        insertBlock: () => {},
-        replaceBlocks: () => {},
-        // 他の必要なメソッドをモック
-      };
-      editorRef.current = mockEditor as any;
-      return mockEditor as any;
-    }
-  }, []); // 依存配列を空に
-
-  // エディタインスタンスの初期化
-  const editor = useMemo(() => {
-    // サーバーサイドでは実行しない
-    if (typeof window === "undefined") return null;
-
-    // Function.prototype.callの修正を強化
-    try {
-      // Function.prototype.callが存在するか確認
-      if (typeof Function.prototype.call !== "function") {
-        console.error(
-          "[EditorProvider] ⚠️ Function.prototype.callが存在しません"
-        );
-
-        // Function.prototype.callを再定義
-        Function.prototype.call = function () {
-          const fn = this;
-          const thisArg = arguments[0] || window;
-          const args = [];
-          for (let i = 1; i < arguments.length; i++) {
-            args.push(arguments[i]);
-          }
-
-          // 直接関数を呼び出す（applyを使わない）
-          thisArg._fn = fn;
-          let result;
-          switch (args.length) {
-            case 0:
-              result = thisArg._fn();
-              break;
-            case 1:
-              result = thisArg._fn(args[0]);
-              break;
-            case 2:
-              result = thisArg._fn(args[0], args[1]);
-              break;
-            case 3:
-              result = thisArg._fn(args[0], args[1], args[2]);
-              break;
-            default:
-              // applyが存在する場合はapplyを使用、そうでなければ直接呼び出し
-              if (typeof Function.prototype.apply === "function") {
-                result = thisArg._fn.apply(thisArg, args);
-              } else {
-                // 最大10個の引数まで対応
-                switch (args.length) {
-                  case 4:
-                    result = thisArg._fn(args[0], args[1], args[2], args[3]);
-                    break;
-                  case 5:
-                    result = thisArg._fn(
-                      args[0],
-                      args[1],
-                      args[2],
-                      args[3],
-                      args[4]
-                    );
-                    break;
-                  case 6:
-                    result = thisArg._fn(
-                      args[0],
-                      args[1],
-                      args[2],
-                      args[3],
-                      args[4],
-                      args[5]
-                    );
-                    break;
-                  case 7:
-                    result = thisArg._fn(
-                      args[0],
-                      args[1],
-                      args[2],
-                      args[3],
-                      args[4],
-                      args[5],
-                      args[6]
-                    );
-                    break;
-                  case 8:
-                    result = thisArg._fn(
-                      args[0],
-                      args[1],
-                      args[2],
-                      args[3],
-                      args[4],
-                      args[5],
-                      args[6],
-                      args[7]
-                    );
-                    break;
-                  case 9:
-                    result = thisArg._fn(
-                      args[0],
-                      args[1],
-                      args[2],
-                      args[3],
-                      args[4],
-                      args[5],
-                      args[6],
-                      args[7],
-                      args[8]
-                    );
-                    break;
-                  case 10:
-                    result = thisArg._fn(
-                      args[0],
-                      args[1],
-                      args[2],
-                      args[3],
-                      args[4],
-                      args[5],
-                      args[6],
-                      args[7],
-                      args[8],
-                      args[9]
-                    );
-                    break;
-                  default:
-                    result = thisArg._fn(
-                      args[0],
-                      args[1],
-                      args[2],
-                      args[3],
-                      args[4]
-                    ); // 5個以上の引数は切り捨て
-                }
-              }
-          }
-          delete thisArg._fn;
-          return result;
-        };
-
-        console.log(
-          "[EditorProvider] Function.prototype.callを再定義しました:",
-          typeof Function.prototype.call
-        );
-      }
-
-      // Function.prototype.applyも確認
-      if (typeof Function.prototype.apply !== "function") {
-        console.error(
-          "[EditorProvider] ⚠️ Function.prototype.applyが存在しません"
-        );
-
-        // Function.prototype.applyを再定義
-        Function.prototype.apply = function (thisArg, argsArray) {
-          const fn = this;
-          thisArg = thisArg || window;
-          thisArg._fn = fn;
-
-          // 引数がない場合
-          if (!argsArray || argsArray.length === 0) {
-            const result = thisArg._fn();
-            delete thisArg._fn;
-            return result;
-          }
-
-          // 引数がある場合は直接呼び出し
-          let result;
-          switch (argsArray.length) {
-            case 1:
-              result = thisArg._fn(argsArray[0]);
-              break;
-            case 2:
-              result = thisArg._fn(argsArray[0], argsArray[1]);
-              break;
-            case 3:
-              result = thisArg._fn(argsArray[0], argsArray[1], argsArray[2]);
-              break;
-            case 4:
-              result = thisArg._fn(
-                argsArray[0],
-                argsArray[1],
-                argsArray[2],
-                argsArray[3]
-              );
-              break;
-            case 5:
-              result = thisArg._fn(
-                argsArray[0],
-                argsArray[1],
-                argsArray[2],
-                argsArray[3],
-                argsArray[4]
-              );
-              break;
-            default:
-              // 5個以上の引数は切り捨て
-              result = thisArg._fn(
-                argsArray[0],
-                argsArray[1],
-                argsArray[2],
-                argsArray[3],
-                argsArray[4]
-              );
-          }
-
-          delete thisArg._fn;
-          return result;
-        };
-
-        console.log(
-          "[EditorProvider] Function.prototype.applyを再定義しました:",
-          typeof Function.prototype.apply
-        );
-      }
-    } catch (error) {
       console.error(
-        "[EditorProvider] Function.prototypeの修正中にエラーが発生しました:",
+        "[EditorProvider] エディタの初期化中にエラーが発生しました:",
         error
       );
+      setError(error as Error);
+      return null;
     }
-
-    console.log("[EditorProvider] 🎨 エディタインスタンスの作成/取得");
-    if (editorRef.current) {
-      console.log("[EditorProvider] ♻️ 既存のエディタインスタンスを再利用");
-      return editorRef.current;
-    }
-
-    console.log("[EditorProvider] 🆕 新しいエディタインスタンスを作成");
-    return createEditor();
-  }, [createEditor]);
+  }, []);
 
   const contextValue: EditorContextType = {
     editor: editor,
