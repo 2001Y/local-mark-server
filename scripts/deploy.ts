@@ -89,6 +89,20 @@ async function runCommand(
 // PM2が実行中かどうかを確認する関数
 async function isPM2Running(): Promise<boolean> {
   const result = await runCommand("pm2 list");
+
+  // デバッグ用のログを追加
+  log("PM2の状態詳細:");
+  if (result.output) {
+    log(`PM2出力: ${result.output}`);
+    log(
+      `local-mark-serverが含まれているか: ${result.output.includes(
+        "local-mark-server"
+      )}`
+    );
+  } else {
+    log("PM2出力がありません");
+  }
+
   return result.success && result.output
     ? result.output.includes("local-mark-server")
     : false;
@@ -173,14 +187,52 @@ async function main(): Promise<void> {
     log("PM2の状態を確認しています...");
     const pm2Running = await isPM2Running();
 
-    if (pm2Running) {
+    // PM2プロセスの状態を修正
+    if (!pm2Running) {
+      log("local-mark-serverプロセスが見つかりません。新規に起動します...");
+      const startResult = await runCommand("pm2 start pm2.config.js");
+      log(`PM2起動結果: ${startResult.success ? "成功" : "失敗"}`);
+
+      if (startResult.success) {
+        log("PM2プロセスリストを保存しています...");
+        await runCommand("pm2 save");
+      } else if (startResult.output) {
+        log(`PM2起動エラー詳細: ${startResult.output}`);
+
+        // 起動に失敗した場合、既存のプロセスを削除して再試行
+        log("既存のプロセスを削除して再試行します...");
+        await runCommand("pm2 delete local-mark-server");
+        const retryResult = await runCommand("pm2 start pm2.config.js");
+        log(`PM2再試行結果: ${retryResult.success ? "成功" : "失敗"}`);
+
+        if (retryResult.success) {
+          log("PM2プロセスリストを保存しています...");
+          await runCommand("pm2 save");
+        }
+      }
+    } else {
       // PM2プロセスが実行中の場合は再起動
       log("PM2プロセスを再起動しています...");
-      await runCommand("pm2 reload local-mark-server");
-    } else {
-      // PM2プロセスが実行されていない場合は起動
-      log("PM2プロセスを起動しています...");
-      await runCommand("pm2 start pm2.config.js");
+      const reloadResult = await runCommand("pm2 reload local-mark-server");
+      log(`PM2再起動結果: ${reloadResult.success ? "成功" : "失敗"}`);
+
+      if (!reloadResult.success) {
+        if (reloadResult.output) {
+          log(`PM2再起動エラー詳細: ${reloadResult.output}`);
+        }
+
+        // 再起動に失敗した場合、停止してから起動
+        log("再起動に失敗しました。停止してから起動します...");
+        await runCommand("pm2 stop local-mark-server");
+        const startAfterStopResult = await runCommand(
+          "pm2 start pm2.config.js"
+        );
+        log(
+          `PM2再起動（停止後）結果: ${
+            startAfterStopResult.success ? "成功" : "失敗"
+          }`
+        );
+      }
     }
 
     // PM2のステータスを表示
