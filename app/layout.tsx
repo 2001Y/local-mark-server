@@ -144,70 +144,172 @@ export default async function RootLayout({
   return (
     <html lang="ja">
       <head>
-        <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#0066cc" />
-        <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <link
-          rel="icon"
-          href="/apple-touch-icon.png"
-          type="image/png"
-          sizes="512x512"
+        {/* Function.prototype.callのポリフィル - 最優先で実行（インラインスクリプト） */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              // 即時実行関数でFunction.prototype.callを保護
+              (function() {
+                // 元のcallメソッドを保存
+                var originalCall = Function.prototype.call;
+                
+                // グローバル変数に保存（デバッグ用）
+                window.__originalFunctionCall = originalCall;
+                
+                // Function.prototype.callが変更されたときに検知するためのプロキシ
+                Object.defineProperty(Function.prototype, 'call', {
+                  configurable: true,
+                  enumerable: false,
+                  get: function() {
+                    return window.__originalFunctionCall || originalCall;
+                  },
+                  set: function(newValue) {
+                    console.warn('Function.prototype.callが変更されようとしています');
+                    // 変更を許可するが、元の値を保持
+                    window.__originalFunctionCall = newValue;
+                  }
+                });
+                
+                console.log('Function.prototype.callの保護を設定しました');
+              })();
+            `,
+          }}
         />
-        <link
-          rel="apple-touch-icon"
-          href="/apple-touch-icon.png"
-          type="image/png"
-        />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="LocalMark" />
 
-        {/* Function.prototype.callのポリフィル - 最優先で実行 */}
+        {/* Function.prototype.callのポリフィル - 詳細実装 */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
+                console.log('Function.prototype.callポリフィルの初期化を開始します');
+                
+                // 元のcallメソッドを保存（存在する場合）
+                var originalCall = window.__originalFunctionCall || Function.prototype.call;
+                
                 try {
+                  // Function.prototypeが存在するか確認
+                  if (typeof Function.prototype === 'undefined') {
+                    console.error('Function.prototypeが存在しません！');
+                    return;
+                  }
+                  
+                  console.log('Function.prototype.callの状態:', typeof Function.prototype.call);
+                  
                   // Function.prototype.callが存在するか確認
                   if (typeof Function.prototype.call !== 'function') {
                     console.log('Function.prototype.callのポリフィルを適用します');
                     
                     // Function.prototype.callを再定義
-                    Function.prototype.call = function() {
+                    var newCall = function() {
+                      console.log('ポリフィルされたcallが呼び出されました');
+                      
                       var fn = this;
-                      var thisArg = arguments[0] || window;
+                      if (typeof fn !== 'function') {
+                        console.error('callメソッドが関数以外に対して呼び出されました:', typeof fn);
+                        throw new TypeError('Function.prototype.call was called on non-function');
+                      }
+                      
+                      var thisArg = arguments[0];
+                      // undefinedやnullの場合はグローバルオブジェクトを使用
+                      if (thisArg === undefined || thisArg === null) {
+                        thisArg = typeof window !== 'undefined' ? window : global;
+                      }
+                      
                       var args = [];
                       for (var i = 1; i < arguments.length; i++) {
                         args.push(arguments[i]);
                       }
                       
                       // 直接関数を呼び出す（applyを使わない）
-                      thisArg._fn = fn;
+                      var uniqueProp = '_fn_' + Math.random().toString(36).substr(2, 9);
+                      thisArg[uniqueProp] = fn;
+                      
                       var result;
-                      switch (args.length) {
-                        case 0: result = thisArg._fn(); break;
-                        case 1: result = thisArg._fn(args[0]); break;
-                        case 2: result = thisArg._fn(args[0], args[1]); break;
-                        case 3: result = thisArg._fn(args[0], args[1], args[2]); break;
-                        default:
-                          result = thisArg._fn.apply(thisArg, args);
+                      try {
+                        switch (args.length) {
+                          case 0: result = thisArg[uniqueProp](); break;
+                          case 1: result = thisArg[uniqueProp](args[0]); break;
+                          case 2: result = thisArg[uniqueProp](args[0], args[1]); break;
+                          case 3: result = thisArg[uniqueProp](args[0], args[1], args[2]); break;
+                          default:
+                            // 直接引数を展開
+                            var argStr = '';
+                            for (var j = 0; j < args.length; j++) {
+                              argStr += (j > 0 ? ',' : '') + 'args[' + j + ']';
+                            }
+                            result = eval('thisArg[uniqueProp](' + argStr + ')');
+                        }
+                      } catch (e) {
+                        console.error('ポリフィルされたcallの実行中にエラーが発生しました:', e);
+                        throw e;
+                      } finally {
+                        // 一時プロパティを削除
+                        delete thisArg[uniqueProp];
                       }
-                      delete thisArg._fn;
+                      
                       return result;
                     };
                     
+                    // グローバル変数に保存
+                    window.__originalFunctionCall = newCall;
+                    
+                    // プロパティを直接設定
+                    Object.defineProperty(Function.prototype, 'call', {
+                      value: newCall,
+                      writable: true,
+                      configurable: true,
+                      enumerable: false
+                    });
+                    
                     // 適用確認
                     console.log('Function.prototype.callのポリフィルが適用されました:', typeof Function.prototype.call);
+                  } else {
+                    console.log('Function.prototype.callは既に存在します。ポリフィルは適用しません。');
                   }
+                  
+                  // テスト関数でポリフィルをテスト
+                  function testFunction() {
+                    return this.testValue;
+                  }
+                  
+                  var testObject = { testValue: 'ポリフィルテスト成功' };
+                  try {
+                    var testResult = testFunction.call(testObject);
+                    console.log('ポリフィルテスト結果:', testResult);
+                  } catch (e) {
+                    console.error('ポリフィルテスト失敗:', e);
+                  }
+                  
                 } catch (e) {
                   console.error('ポリフィルの適用に失敗しました:', e);
+                  
+                  // 元のメソッドを復元（存在した場合）
+                  if (originalCall) {
+                    console.log('元のFunction.prototype.callを復元します');
+                    window.__originalFunctionCall = originalCall;
+                    
+                    Object.defineProperty(Function.prototype, 'call', {
+                      value: originalCall,
+                      writable: true,
+                      configurable: true,
+                      enumerable: false
+                    });
+                  }
                 }
               })();
               
               // 問題のファイル（1517.js）を特定するためのスクリプト
+              window.addEventListener('DOMContentLoaded', function() {
+                console.log('DOMContentLoaded - スクリプトの検索を開始します');
+                monitorScripts();
+              });
+              
               window.addEventListener('load', function() {
                 console.log('ページロード完了 - スクリプトの検索を開始します');
-                
+                monitorScripts();
+              });
+              
+              function monitorScripts() {
                 // すべてのスクリプトタグを検索
                 var scripts = document.querySelectorAll('script');
                 scripts.forEach(function(script) {
@@ -225,6 +327,18 @@ export default async function RootLayout({
                         if (callUsage) {
                           console.log('Function.prototype.callの使用箇所:', callUsage.length);
                         }
+                        
+                        // 特定のパターンを検索
+                        var fPattern = text.match(/function\s+f\s*\(/g);
+                        if (fPattern) {
+                          console.log('function f() パターンの出現回数:', fPattern.length);
+                          
+                          // function f の周辺コードを抽出
+                          var fIndex = text.indexOf('function f(');
+                          if (fIndex !== -1) {
+                            console.log('function f の周辺コード:', text.substring(fIndex, fIndex + 200));
+                          }
+                        }
                       })
                       .catch(function(error) {
                         console.error('スクリプトの取得に失敗しました:', error);
@@ -241,22 +355,35 @@ export default async function RootLayout({
                     }
                   });
                 }
-              });
-            `,
-          }}
-        />
-
-        {/* <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/service-worker.js');
+                
+                // グローバルエラーハンドラーを設定
+                window.addEventListener('error', function(event) {
+                  if (event.error && event.error.stack && event.error.stack.includes('1517.js')) {
+                    console.log('1517.jsに関連するエラーが検出されました:', event.error);
+                  }
                 });
               }
             `,
           }}
-        /> */}
+        />
+
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#0066cc" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <link
+          rel="icon"
+          href="/apple-touch-icon.png"
+          type="image/png"
+          sizes="512x512"
+        />
+        <link
+          rel="apple-touch-icon"
+          href="/apple-touch-icon.png"
+          type="image/png"
+        />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="LocalMark" />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${styles.body}`}
