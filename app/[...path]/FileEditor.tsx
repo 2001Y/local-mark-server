@@ -11,13 +11,17 @@
 "use client";
 
 import { useCallback, useEffect, useState, useRef, Component } from "react";
-import { Block, BlockNoteEditor } from "@blocknote/core";
+import * as BlockNotePackage from "@blocknote/core";
 import { BlockNoteView } from "@blocknote/mantine";
 import { MantineProvider, createTheme } from "@mantine/core";
 import { toast } from "sonner";
 import { useEditor } from "@/app/context/EditorContext";
 import { debounce } from "lodash";
 import { DragDropHandler } from "@/app/components/DragDropHandler";
+
+// 型の別名を定義
+type Block = BlockNotePackage.Block;
+type BlockNoteEditor = BlockNotePackage.BlockNoteEditor;
 
 // 独自のErrorBoundaryコンポーネント
 class ErrorBoundary extends Component<

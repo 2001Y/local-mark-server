@@ -10,9 +10,14 @@ const nextConfig = {
       bodySizeLimit: "2mb",
     },
   },
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, dev }) => {
     if (!isServer) {
       config.output.filename = "static/chunks/[name].js";
+
+      // プロダクションビルドの場合のみソースマップを有効にする
+      if (!dev) {
+        config.devtool = "source-map";
+      }
     }
     return config;
   },

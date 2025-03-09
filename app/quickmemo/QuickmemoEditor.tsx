@@ -8,7 +8,11 @@ import { toast } from "sonner";
 import styles from "./quickmemo.module.css";
 import { useFileActions } from "@/app/actions/client";
 import { useEditor } from "@/app/context/EditorContext";
-import { Block, BlockNoteEditor } from "@blocknote/core";
+import * as BlockNotePackage from "@blocknote/core";
+
+// 型の別名を定義
+type Block = BlockNotePackage.Block;
+type BlockNoteEditor = BlockNotePackage.BlockNoteEditor;
 
 // クイックメモ用の一時ファイルパス
 const QUICKMEMO_PATH = "quickmemo_temp";

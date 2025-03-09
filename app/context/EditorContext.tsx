@@ -9,7 +9,7 @@ import {
   useEffect,
   useMemo,
 } from "react";
-import { BlockNoteEditor, Block } from "@blocknote/core";
+import * as BlockNotePackage from "@blocknote/core";
 import "@blocknote/core/style.css";
 import "@mantine/core/styles.css";
 import "@blocknote/mantine/style.css";
@@ -29,14 +29,14 @@ type DataSource = "server" | "localStorage" | "context";
 
 interface SourceData {
   source: DataSource;
-  blocks: Block[] | null;
+  blocks: BlockNotePackage.Block[] | null;
   error?: string | null;
   path: string;
 }
 
 // エディタの状態を表す型
 interface EditorState {
-  blocks: Block[] | null;
+  blocks: BlockNotePackage.Block[] | null;
   source: DataSource | null;
   priority: number;
 }
@@ -56,17 +56,22 @@ const initialEditorState: EditorState = {
 };
 
 interface EditorContextType {
-  editor: BlockNoteEditor | null;
-  cachedBlocks: Map<string, Block[]>;
-  setCachedBlocks: (path: string, blocks: Block[]) => Promise<boolean>;
+  editor: BlockNotePackage.BlockNoteEditor | null;
+  cachedBlocks: Map<string, BlockNotePackage.Block[]>;
+  setCachedBlocks: (
+    path: string,
+    blocks: BlockNotePackage.Block[]
+  ) => Promise<boolean>;
   clearCachedBlocks: (path: string) => void;
   editorViewRef: React.RefObject<HTMLDivElement>;
   setEditorOnChange: (onChange?: () => void) => void;
   isProcessing: boolean;
   cacheStats: { totalSize: number; count: number };
-  loadContent: (
-    path: string
-  ) => Promise<{ blocks: Block[]; isUpdated: boolean; source: string | null }>;
+  loadContent: (path: string) => Promise<{
+    blocks: BlockNotePackage.Block[];
+    isUpdated: boolean;
+    source: string | null;
+  }>;
 }
 
 const EditorContext = createContext<EditorContextType | null>(null);
@@ -81,16 +86,16 @@ export function EditorProvider({ children }: EditorProviderProps) {
   // 状態管理の最適化
   const [isProcessing, setIsProcessing] = useState(false);
   const [cacheStats, setCacheStats] = useState({ totalSize: 0, count: 0 });
-  const [cachedBlocks, setCachedBlocksState] = useState<Map<string, Block[]>>(
-    new Map()
-  );
+  const [cachedBlocks, setCachedBlocksState] = useState<
+    Map<string, BlockNotePackage.Block[]>
+  >(new Map());
 
   // すべてのrefをuseRefで最適化
   const onChangeRef = useRef<(() => void) | undefined>();
-  const editorRef = useRef<BlockNoteEditor | null>(null);
+  const editorRef = useRef<BlockNotePackage.BlockNoteEditor | null>(null);
   const editorViewRef = useRef<HTMLDivElement>(null);
   const editorStateRef = useRef<{
-    blocks: Block[] | null;
+    blocks: BlockNotePackage.Block[] | null;
     source: DataSource | null;
     priority: number;
   }>({
@@ -212,7 +217,7 @@ export function EditorProvider({ children }: EditorProviderProps) {
         return false;
       }
 
-      const blocks = data.blocks as Block[];
+      const blocks = data.blocks as BlockNotePackage.Block[];
       const priority = SOURCE_PRIORITY[data.source];
 
       // 状態の更新を最適化
@@ -370,7 +375,7 @@ export function EditorProvider({ children }: EditorProviderProps) {
     async (
       path: string
     ): Promise<{
-      blocks: Block[] | null;
+      blocks: BlockNotePackage.Block[] | null;
       source: DataSource | null;
       isUpdated: boolean;
     }> => {
@@ -562,7 +567,7 @@ export function EditorProvider({ children }: EditorProviderProps) {
 
   // 既存のsetCachedBlocks関数を修正
   const setCachedBlocks = useCallback(
-    async (path: string, blocks: Block[]) => {
+    async (path: string, blocks: BlockNotePackage.Block[]) => {
       console.log(
         `[EditorProvider] 📝 setCachedBlocks called for path: ${path}`
       );
@@ -845,8 +850,49 @@ export function EditorProvider({ children }: EditorProviderProps) {
       // BlockNoteEditorの作成前にグローバルオブジェクトの状態を確認
       if (typeof window !== "undefined") {
         console.log("[EditorProvider] window.document:", !!window.document);
+        console.log(
+          "[EditorProvider] Function.prototype.call:",
+          typeof Function.prototype.call
+        );
+        console.log(
+          "[EditorProvider] Function.prototype.apply:",
+          typeof Function.prototype.apply
+        );
       }
 
+      // BlockNotePackageの内容を確認
+      console.log(
+        "[EditorProvider] BlockNotePackage:",
+        Object.keys(BlockNotePackage)
+      );
+
+      // BlockNoteEditorが存在するか確認
+      if (!BlockNotePackage || typeof BlockNotePackage !== "object") {
+        console.error("[EditorProvider] ⚠️ BlockNotePackageが存在しません");
+        throw new Error("BlockNotePackageが見つかりません");
+      }
+
+      // BlockNoteEditorを取得
+      const BlockNoteEditor = BlockNotePackage.BlockNoteEditor;
+
+      if (!BlockNoteEditor) {
+        console.error("[EditorProvider] ⚠️ BlockNoteEditorが存在しません");
+        throw new Error("BlockNoteEditorが見つかりません");
+      }
+
+      console.log("[EditorProvider] BlockNoteEditor:", BlockNoteEditor);
+
+      // BlockNoteEditor.createが関数かどうか確認
+      if (typeof BlockNoteEditor.create !== "function") {
+        console.error(
+          "[EditorProvider] ⚠️ BlockNoteEditor.createが関数ではありません:",
+          typeof BlockNoteEditor.create
+        );
+        throw new Error("BlockNoteEditor.createが関数ではありません");
+      }
+
+      // 安全にBlockNoteEditorを作成
+      console.log("[EditorProvider] BlockNoteEditor.createを呼び出します");
       const newEditor = BlockNoteEditor.create({
         uploadFile,
       });
@@ -892,7 +938,7 @@ export function EditorProvider({ children }: EditorProviderProps) {
           }
           return () => {}; // アンサブスクライブ関数
         },
-        blocksToMarkdownLossy: async (blocks: Block[]) => {
+        blocksToMarkdownLossy: async (blocks: BlockNotePackage.Block[]) => {
           console.log(
             "[EditorProvider] モックエディタのblocksToMarkdownLossyが呼ばれました"
           );
@@ -916,20 +962,212 @@ export function EditorProvider({ children }: EditorProviderProps) {
     // サーバーサイドでは実行しない
     if (typeof window === "undefined") return null;
 
-    // Function.prototype.callが存在することを確認
-    if (typeof Function.prototype.call !== "function") {
+    // Function.prototype.callの修正を強化
+    try {
+      // Function.prototype.callが存在するか確認
+      if (typeof Function.prototype.call !== "function") {
+        console.error(
+          "[EditorProvider] ⚠️ Function.prototype.callが存在しません"
+        );
+
+        // Function.prototype.callを再定義
+        Function.prototype.call = function () {
+          const fn = this;
+          const thisArg = arguments[0] || window;
+          const args = [];
+          for (let i = 1; i < arguments.length; i++) {
+            args.push(arguments[i]);
+          }
+
+          // 直接関数を呼び出す（applyを使わない）
+          thisArg._fn = fn;
+          let result;
+          switch (args.length) {
+            case 0:
+              result = thisArg._fn();
+              break;
+            case 1:
+              result = thisArg._fn(args[0]);
+              break;
+            case 2:
+              result = thisArg._fn(args[0], args[1]);
+              break;
+            case 3:
+              result = thisArg._fn(args[0], args[1], args[2]);
+              break;
+            default:
+              // applyが存在する場合はapplyを使用、そうでなければ直接呼び出し
+              if (typeof Function.prototype.apply === "function") {
+                result = thisArg._fn.apply(thisArg, args);
+              } else {
+                // 最大10個の引数まで対応
+                switch (args.length) {
+                  case 4:
+                    result = thisArg._fn(args[0], args[1], args[2], args[3]);
+                    break;
+                  case 5:
+                    result = thisArg._fn(
+                      args[0],
+                      args[1],
+                      args[2],
+                      args[3],
+                      args[4]
+                    );
+                    break;
+                  case 6:
+                    result = thisArg._fn(
+                      args[0],
+                      args[1],
+                      args[2],
+                      args[3],
+                      args[4],
+                      args[5]
+                    );
+                    break;
+                  case 7:
+                    result = thisArg._fn(
+                      args[0],
+                      args[1],
+                      args[2],
+                      args[3],
+                      args[4],
+                      args[5],
+                      args[6]
+                    );
+                    break;
+                  case 8:
+                    result = thisArg._fn(
+                      args[0],
+                      args[1],
+                      args[2],
+                      args[3],
+                      args[4],
+                      args[5],
+                      args[6],
+                      args[7]
+                    );
+                    break;
+                  case 9:
+                    result = thisArg._fn(
+                      args[0],
+                      args[1],
+                      args[2],
+                      args[3],
+                      args[4],
+                      args[5],
+                      args[6],
+                      args[7],
+                      args[8]
+                    );
+                    break;
+                  case 10:
+                    result = thisArg._fn(
+                      args[0],
+                      args[1],
+                      args[2],
+                      args[3],
+                      args[4],
+                      args[5],
+                      args[6],
+                      args[7],
+                      args[8],
+                      args[9]
+                    );
+                    break;
+                  default:
+                    result = thisArg._fn(
+                      args[0],
+                      args[1],
+                      args[2],
+                      args[3],
+                      args[4]
+                    ); // 5個以上の引数は切り捨て
+                }
+              }
+          }
+          delete thisArg._fn;
+          return result;
+        };
+
+        console.log(
+          "[EditorProvider] Function.prototype.callを再定義しました:",
+          typeof Function.prototype.call
+        );
+      }
+
+      // Function.prototype.applyも確認
+      if (typeof Function.prototype.apply !== "function") {
+        console.error(
+          "[EditorProvider] ⚠️ Function.prototype.applyが存在しません"
+        );
+
+        // Function.prototype.applyを再定義
+        Function.prototype.apply = function (thisArg, argsArray) {
+          const fn = this;
+          thisArg = thisArg || window;
+          thisArg._fn = fn;
+
+          // 引数がない場合
+          if (!argsArray || argsArray.length === 0) {
+            const result = thisArg._fn();
+            delete thisArg._fn;
+            return result;
+          }
+
+          // 引数がある場合は直接呼び出し
+          let result;
+          switch (argsArray.length) {
+            case 1:
+              result = thisArg._fn(argsArray[0]);
+              break;
+            case 2:
+              result = thisArg._fn(argsArray[0], argsArray[1]);
+              break;
+            case 3:
+              result = thisArg._fn(argsArray[0], argsArray[1], argsArray[2]);
+              break;
+            case 4:
+              result = thisArg._fn(
+                argsArray[0],
+                argsArray[1],
+                argsArray[2],
+                argsArray[3]
+              );
+              break;
+            case 5:
+              result = thisArg._fn(
+                argsArray[0],
+                argsArray[1],
+                argsArray[2],
+                argsArray[3],
+                argsArray[4]
+              );
+              break;
+            default:
+              // 5個以上の引数は切り捨て
+              result = thisArg._fn(
+                argsArray[0],
+                argsArray[1],
+                argsArray[2],
+                argsArray[3],
+                argsArray[4]
+              );
+          }
+
+          delete thisArg._fn;
+          return result;
+        };
+
+        console.log(
+          "[EditorProvider] Function.prototype.applyを再定義しました:",
+          typeof Function.prototype.apply
+        );
+      }
+    } catch (error) {
       console.error(
-        "[EditorProvider] ⚠️ Function.prototype.callが存在しません"
+        "[EditorProvider] Function.prototypeの修正中にエラーが発生しました:",
+        error
       );
-      // Function.prototype.callを再定義
-      Function.prototype.call = function (thisArg, ...args) {
-        const fn = this;
-        thisArg = thisArg || window;
-        thisArg._fn = fn;
-        const result = thisArg._fn(...args);
-        delete thisArg._fn;
-        return result;
-      };
     }
 
     console.log("[EditorProvider] 🎨 エディタインスタンスの作成/取得");
