@@ -9,6 +9,7 @@ const nextConfig = {
       allowedOrigins: ["*"],
       bodySizeLimit: "2mb",
     },
+    serverMinification: false,
   },
   webpack: (config, { isServer, dev }) => {
     if (!isServer) {
