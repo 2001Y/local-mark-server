@@ -36,6 +36,14 @@ const nextConfig = {
               chunks: "all",
               priority: 20,
             },
+            // BlockNoteライブラリを最適化から除外
+            blocknote: {
+              name: "blocknote",
+              test: /[\\/]node_modules[\\/](@blocknote)[\\/]/,
+              chunks: "all",
+              priority: 30,
+              reuseExistingChunk: true,
+            },
           },
         },
         // チャンクの読み込み順序の最適化
@@ -92,6 +100,34 @@ const nextConfig = {
           {
             key: "Content-Type",
             value: "application/javascript; charset=utf-8",
+          },
+        ],
+      },
+      // CSSファイルのMIMEタイプ設定
+      {
+        source: "/_next/static/css/:path*",
+        headers: [
+          {
+            key: "Content-Type",
+            value: "text/css; charset=utf-8",
+          },
+        ],
+      },
+      {
+        source: "/_next/static/chunks/:path*.css",
+        headers: [
+          {
+            key: "Content-Type",
+            value: "text/css; charset=utf-8",
+          },
+        ],
+      },
+      {
+        source: "/_next/static/media/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
           },
         ],
       },
