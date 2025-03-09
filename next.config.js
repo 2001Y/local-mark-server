@@ -12,7 +12,37 @@ const nextConfig = {
   },
   webpack: (config, { isServer, dev }) => {
     if (!isServer) {
+      // 出力ファイル名の設定
       config.output.filename = "static/chunks/[name].js";
+
+      // チャンクの最適化設定
+      config.optimization = {
+        ...config.optimization,
+        // チャンクの分割設定
+        splitChunks: {
+          chunks: "all",
+          cacheGroups: {
+            // ベンダーチャンクの設定
+            vendor: {
+              name: "vendor",
+              test: /[\\/]node_modules[\\/]/,
+              chunks: "all",
+              priority: 10,
+            },
+            // コアライブラリの設定（Function.prototype.callを使用する可能性のあるもの）
+            core: {
+              name: "core",
+              test: /[\\/]node_modules[\\/](react|react-dom|next)[\\/]/,
+              chunks: "all",
+              priority: 20,
+            },
+          },
+        },
+        // チャンクの読み込み順序の最適化
+        runtimeChunk: {
+          name: "runtime",
+        },
+      };
 
       // プロダクションビルドの場合のみソースマップを有効にする
       if (!dev) {

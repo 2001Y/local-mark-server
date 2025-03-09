@@ -9,7 +9,7 @@ export function usePath() {
   const router = useRouter();
 
   const getCurrentPath = useCallback(() => {
-    if (segments.length === 0) {
+    if (!segments || segments.length === 0) {
       return process.env.NEXT_PUBLIC_DEFAULT_MD_PATH + "/";
     }
     return "/" + segments.join("/");
@@ -28,7 +28,7 @@ export function usePath() {
   );
 
   const navigateToParent = useCallback(() => {
-    if (segments.length <= 1) {
+    if (!segments || segments.length <= 1) {
       return;
     }
     const parentSegments = segments.slice(0, -1);
@@ -40,6 +40,6 @@ export function usePath() {
     getCurrentPath,
     navigateTo,
     navigateToParent,
-    isRoot: segments.length === 0,
+    isRoot: !segments || segments.length === 0,
   };
 }

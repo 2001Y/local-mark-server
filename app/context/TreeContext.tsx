@@ -40,7 +40,7 @@ export function TreeProvider({
 
   // パスが変更されたときにisRootを更新
   useEffect(() => {
-    setIsRoot(segments.length === 0);
+    setIsRoot(segments ? segments.length === 0 : true);
   }, [segments]);
 
   // initialTreeが変更されたときにtreeを更新

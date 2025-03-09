@@ -119,7 +119,7 @@ export function Header({ source = "unknown" }: HeaderProps) {
             <button onClick={handleBack} className="back-button">
               <Icon icon="ph:arrow-left" width={20} height={20} />
             </button>
-            <Breadcrumb currentPath={pathname} showOnHover />
+            <Breadcrumb currentPath={pathname || "/"} showOnHover />
           </div>
           <style jsx>{`
             .header {

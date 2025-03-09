@@ -150,27 +150,31 @@ export default async function RootLayout({
             __html: `
               // 即時実行関数でFunction.prototype.callを保護
               (function() {
-                // 元のcallメソッドを保存
-                var originalCall = Function.prototype.call;
-                
-                // グローバル変数に保存（デバッグ用）
-                window.__originalFunctionCall = originalCall;
-                
-                // Function.prototype.callが変更されたときに検知するためのプロキシ
-                Object.defineProperty(Function.prototype, 'call', {
-                  configurable: true,
-                  enumerable: false,
-                  get: function() {
-                    return window.__originalFunctionCall || originalCall;
-                  },
-                  set: function(newValue) {
-                    console.warn('Function.prototype.callが変更されようとしています');
-                    // 変更を許可するが、元の値を保持
-                    window.__originalFunctionCall = newValue;
-                  }
-                });
-                
-                console.log('Function.prototype.callの保護を設定しました');
+                try {
+                  // 元のcallメソッドを保存
+                  var originalCall = Function.prototype.call;
+                  
+                  // グローバル変数に保存（デバッグ用）
+                  window.__originalFunctionCall = originalCall;
+                  
+                  // Function.prototype.callが変更されたときに検知するためのプロキシ
+                  Object.defineProperty(Function.prototype, 'call', {
+                    configurable: true,
+                    enumerable: false,
+                    get: function() {
+                      return window.__originalFunctionCall || originalCall;
+                    },
+                    set: function(newValue) {
+                      console.warn('Function.prototype.callが変更されようとしています');
+                      // 変更を許可するが、元の値を保持
+                      window.__originalFunctionCall = newValue;
+                    }
+                  });
+                  
+                  console.log('Function.prototype.callの保護を設定しました');
+                } catch (e) {
+                  console.error('Function.prototype.callの保護設定中にエラーが発生しました:', e);
+                }
               })();
             `,
           }}
@@ -181,12 +185,12 @@ export default async function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
-                console.log('Function.prototype.callポリフィルの初期化を開始します');
-                
-                // 元のcallメソッドを保存（存在する場合）
-                var originalCall = window.__originalFunctionCall || Function.prototype.call;
-                
                 try {
+                  console.log('Function.prototype.callポリフィルの初期化を開始します');
+                  
+                  // 元のcallメソッドを保存（存在する場合）
+                  var originalCall = window.__originalFunctionCall || Function.prototype.call;
+                  
                   // Function.prototypeが存在するか確認
                   if (typeof Function.prototype === 'undefined') {
                     console.error('Function.prototypeが存在しません！');
@@ -201,8 +205,6 @@ export default async function RootLayout({
                     
                     // Function.prototype.callを再定義
                     var newCall = function() {
-                      console.log('ポリフィルされたcallが呼び出されました');
-                      
                       var fn = this;
                       if (typeof fn !== 'function') {
                         console.error('callメソッドが関数以外に対して呼び出されました:', typeof fn);
@@ -279,7 +281,6 @@ export default async function RootLayout({
                   } catch (e) {
                     console.error('ポリフィルテスト失敗:', e);
                   }
-                  
                 } catch (e) {
                   console.error('ポリフィルの適用に失敗しました:', e);
                   
@@ -297,71 +298,90 @@ export default async function RootLayout({
                   }
                 }
               })();
-              
+            `,
+          }}
+        />
+
+        {/* 問題のスクリプト（1517.js）を監視するスクリプト */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
               // 問題のファイル（1517.js）を特定するためのスクリプト
               window.addEventListener('DOMContentLoaded', function() {
                 console.log('DOMContentLoaded - スクリプトの検索を開始します');
-                monitorScripts();
+                try {
+                  monitorScripts();
+                } catch (e) {
+                  console.error('DOMContentLoadedでのスクリプト監視中にエラーが発生しました:', e);
+                }
               });
               
               window.addEventListener('load', function() {
                 console.log('ページロード完了 - スクリプトの検索を開始します');
-                monitorScripts();
+                try {
+                  monitorScripts();
+                } catch (e) {
+                  console.error('ページロード完了時のスクリプト監視中にエラーが発生しました:', e);
+                }
               });
               
               function monitorScripts() {
-                // すべてのスクリプトタグを検索
-                var scripts = document.querySelectorAll('script');
-                scripts.forEach(function(script) {
-                  if (script.src && script.src.includes('1517')) {
-                    console.log('問題のスクリプトが見つかりました:', script.src);
-                    
-                    // スクリプトの内容を取得
-                    fetch(script.src)
-                      .then(function(response) { return response.text(); })
-                      .then(function(text) {
-                        console.log('スクリプトの内容（先頭500文字）:', text.substring(0, 500));
-                        
-                        // Function.prototype.callの使用箇所を検索
-                        var callUsage = text.match(/Function\.prototype\.call/g);
-                        if (callUsage) {
-                          console.log('Function.prototype.callの使用箇所:', callUsage.length);
-                        }
-                        
-                        // 特定のパターンを検索
-                        var fPattern = text.match(/function\s+f\s*\(/g);
-                        if (fPattern) {
-                          console.log('function f() パターンの出現回数:', fPattern.length);
+                try {
+                  // すべてのスクリプトタグを検索
+                  var scripts = document.querySelectorAll('script');
+                  scripts.forEach(function(script) {
+                    if (script.src && script.src.includes('1517')) {
+                      console.log('問題のスクリプトが見つかりました:', script.src);
+                      
+                      // スクリプトの内容を取得
+                      fetch(script.src)
+                        .then(function(response) { return response.text(); })
+                        .then(function(text) {
+                          console.log('スクリプトの内容（先頭500文字）:', text.substring(0, 500));
                           
-                          // function f の周辺コードを抽出
-                          var fIndex = text.indexOf('function f(');
-                          if (fIndex !== -1) {
-                            console.log('function f の周辺コード:', text.substring(fIndex, fIndex + 200));
+                          // Function.prototype.callの使用箇所を検索
+                          var callUsage = text.match(/Function\\.prototype\\.call/g);
+                          if (callUsage) {
+                            console.log('Function.prototype.callの使用箇所:', callUsage.length);
                           }
-                        }
-                      })
-                      .catch(function(error) {
-                        console.error('スクリプトの取得に失敗しました:', error);
-                      });
-                  }
-                });
-                
-                // ネットワークリクエストを監視
-                if (window.performance && window.performance.getEntries) {
-                  var entries = window.performance.getEntries();
-                  entries.forEach(function(entry) {
-                    if (entry.name && entry.name.includes('1517')) {
-                      console.log('問題のリソースが見つかりました:', entry.name);
+                          
+                          // 特定のパターンを検索（正規表現を修正）
+                          var fPattern = text.match(/function\\s+f\\s*\\(/g);
+                          if (fPattern) {
+                            console.log('function f() パターンの出現回数:', fPattern.length);
+                            
+                            // function f の周辺コードを抽出
+                            var fIndex = text.indexOf('function f(');
+                            if (fIndex !== -1) {
+                              console.log('function f の周辺コード:', text.substring(fIndex, fIndex + 200));
+                            }
+                          }
+                        })
+                        .catch(function(error) {
+                          console.error('スクリプトの取得に失敗しました:', error);
+                        });
                     }
                   });
-                }
-                
-                // グローバルエラーハンドラーを設定
-                window.addEventListener('error', function(event) {
-                  if (event.error && event.error.stack && event.error.stack.includes('1517.js')) {
-                    console.log('1517.jsに関連するエラーが検出されました:', event.error);
+                  
+                  // ネットワークリクエストを監視
+                  if (window.performance && window.performance.getEntries) {
+                    var entries = window.performance.getEntries();
+                    entries.forEach(function(entry) {
+                      if (entry.name && entry.name.includes('1517')) {
+                        console.log('問題のリソースが見つかりました:', entry.name);
+                      }
+                    });
                   }
-                });
+                  
+                  // グローバルエラーハンドラーを設定
+                  window.addEventListener('error', function(event) {
+                    if (event.error && event.error.stack && event.error.stack.includes('1517.js')) {
+                      console.log('1517.jsに関連するエラーが検出されました:', event.error);
+                    }
+                  });
+                } catch (e) {
+                  console.error('スクリプト監視中にエラーが発生しました:', e);
+                }
               }
             `,
           }}
