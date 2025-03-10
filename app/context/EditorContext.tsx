@@ -1,3 +1,39 @@
+/**
+ * EditorContext: アプリケーション全体のエディタ状態管理を担当するコンテキスト
+ *
+ * 責任分担:
+ * 1. グローバルなエディタ状態管理
+ *   - BlockNoteEditorインスタンスの作成と管理
+ *   - アプリケーション全体でのエディタ共有
+ *   - エディタの状態（ブロック、ソース、優先度）の管理
+ *
+ * 2. データの永続化と同期
+ *   - サーバー、ローカルストレージ、コンテキストの3つのデータソースを管理
+ *   - 各ソースの優先度に基づいて最新のデータを提供
+ *   - ファイルの保存処理を担当
+ *
+ * 3. マークダウンパース機能の一元管理
+ *   - マークダウンテキストをBlockNoteのブロック構造に変換
+        - パースにはBlackNote.jsの公式APIのみを使用
+        - tryParseMarkdownToBlocks：Markdownをブロックに変換
+        - blocksToMarkdownLossy：ブロックをMarkdownに変換
+        - replaceBlocks：エディタのドキュメントを更新
+        - https://www.blocknotejs.org/docs/editor-api/converting-blocks
+ *   - パース結果のキャッシュ管理
+ *   - エディタ初期化前のマークダウンデータを一時保存し、初期化後に処理
+ *
+ * 4. 共通機能の提供
+ *   - loadContent: ファイルの内容を読み込む
+ *   - setCachedBlocks: ブロックをキャッシュに保存
+ *   - clearCachedBlocks: キャッシュをクリア
+ *   - エディタの参照を提供
+ *
+ * FileEditorとの連携:
+ *   - FileEditorはuseEditorフックを通じてこのコンテキストにアクセス
+ *   - FileEditorはUIとユーザーインタラクションを担当し、データ操作はこのコンテキストに委譲
+ *   - マークダウンパース処理もこのコンテキストに委譲
+ */
+
 "use client";
 
 import {
@@ -16,9 +52,7 @@ import "@blocknote/mantine/style.css";
 import { getBlockCache, setBlockCache, getCacheStats } from "../lib/blockCache";
 import { getFileContent, saveFile } from "../actions/server";
 import { createHash } from "crypto";
-import path from "path";
 import { toast } from "sonner";
-import { toFsPath } from "../lib/pathUtils";
 
 // ハッシュ関数の定義
 const hashContent = (content: string): string => {
@@ -47,13 +81,6 @@ const SOURCE_PRIORITY: Record<DataSource, number> = {
   localStorage: 2,
   context: 3,
 } as const;
-
-// 初期状態
-const initialEditorState: EditorState = {
-  blocks: null,
-  source: null,
-  priority: 0,
-};
 
 interface EditorContextType {
   editor: BlockNotePackage.BlockNoteEditor | null;
@@ -109,6 +136,9 @@ export function EditorProvider({ children }: EditorProviderProps) {
   const isProcessingRef = useRef(false);
   // 最後に適用されたコンテンツのハッシュを保持
   const lastContentHashRef = useRef<string | null>(null);
+
+  // 一時保存用のマークダウンデータを管理するref
+  const pendingMarkdownRef = useRef<Map<string, string>>(new Map());
 
   // レンダリングの原因を特定するためのログ
   useEffect(() => {
@@ -211,46 +241,98 @@ export function EditorProvider({ children }: EditorProviderProps) {
     return false;
   }, []);
 
-  // データ適用ロジックを最適化
+  // データの適用
   const applyData = useCallback(
     async (data: SourceData): Promise<boolean> => {
-      if (!data.blocks || !Array.isArray(data.blocks) || !editorRef.current) {
+      if (!data.blocks || !shouldApplyData(data)) {
+        console.log(
+          "[EditorProvider] ⚠️ applyData: データが適用条件を満たしていません",
+          {
+            hasBlocks: !!data.blocks,
+            blocksLength: data.blocks?.length || 0,
+            shouldApply: shouldApplyData(data),
+            source: data.source,
+            path: data.path,
+          }
+        );
         return false;
       }
 
-      const blocks = data.blocks as BlockNotePackage.Block[];
-      const priority = SOURCE_PRIORITY[data.source];
-
-      // 状態の更新を最適化
-      const shouldUpdate = shouldApplyData(data);
-      if (!shouldUpdate) {
-        return false;
-      }
-
-      // ハッシュを更新
-      lastContentHashRef.current = hashContent(JSON.stringify(blocks));
-
-      // 状態の更新
+      // editorStateRefを更新
       editorStateRef.current = {
-        blocks,
+        blocks: data.blocks,
         source: data.source,
-        priority,
+        priority: SOURCE_PRIORITY[data.source],
       };
 
-      // エディタのコンテンツを更新
-      await editorRef.current.replaceBlocks(editorRef.current.document, blocks);
+      console.log(
+        `[EditorProvider] 🔄 applyData: ${data.source}からのデータを適用します`,
+        {
+          blocksCount: data.blocks.length,
+          path: data.path,
+          firstBlock:
+            data.blocks.length > 0
+              ? JSON.stringify(data.blocks[0]).substring(0, 100) + "..."
+              : null,
+        }
+      );
 
-      // キャッシュの更新（contextの場合を除く）
-      if (data.source !== "context") {
-        // 非同期でキャッシュを更新
-        setTimeout(() => {
-          setCachedBlocksState((prev) => {
-            const next = new Map(prev);
-            next.set(data.path, blocks);
-            return next;
+      // エディタのコンテンツを更新
+      if (editorRef.current) {
+        try {
+          const editorAny = editorRef.current as any;
+
+          // デバッグ: replaceBlocks関数の存在確認
+          console.log(`[EditorProvider] 🔍 replaceBlocks関数確認:`, {
+            exists: typeof editorAny.replaceBlocks === "function",
+            editorMethods: Object.keys(editorAny).slice(0, 10),
+            documentExists: !!editorAny.document,
+            documentType: editorAny.document
+              ? typeof editorAny.document
+              : "undefined",
+            documentProps: editorAny.document
+              ? Object.keys(editorAny.document).slice(0, 10)
+              : [],
           });
-        }, 0);
+
+          if (
+            typeof editorAny.replaceBlocks === "function" &&
+            editorAny.document
+          ) {
+            console.log("[EditorProvider] 🔄 replaceBlocksを実行します");
+            await editorAny.replaceBlocks(editorAny.document, data.blocks);
+            console.log(
+              `[EditorProvider] ✅ エディタのコンテンツを更新しました`
+            );
+          } else {
+            console.error(
+              "[EditorProvider] ❌ replaceBlocksメソッドまたはdocumentプロパティが見つかりません"
+            );
+            return false;
+          }
+        } catch (error) {
+          console.error(
+            `[EditorProvider] ❌ エディタのコンテンツ更新に失敗:`,
+            error
+          );
+          return false;
+        }
+      } else {
+        console.error("[EditorProvider] ❌ editorRefがnullです");
+        return false;
       }
+
+      // 非同期でキャッシュを更新
+      setTimeout(() => {
+        setCachedBlocksState((prev) => {
+          const next = new Map(prev);
+          // nullチェックを追加して型エラーを解消
+          if (data.blocks !== null) {
+            next.set(data.path, data.blocks);
+          }
+          return next;
+        });
+      }, 0);
 
       return true;
     },
@@ -328,29 +410,130 @@ export function EditorProvider({ children }: EditorProviderProps) {
         console.log("[EditorProvider] 📍Server: データ取得開始");
         try {
           const result = await getFileContent(path);
-          if (result.success && result.data && editorRef.current) {
-            const blocks = await editorRef.current.tryParseMarkdownToBlocks(
-              result.data
-            );
-            console.log(
-              `[EditorContext] 📍Server: ${blocks.length}個のブロック取得 (サーバー取得成功)`
-            );
+          console.log("[EditorProvider] 📍Server: getFileContent結果:", {
+            success: result.success,
+            hasData: !!result.data,
+            dataLength: result.data?.length || 0,
+            error: result.error,
+          });
 
-            // 取得したデータをキャッシュに保存（非同期で実行）
-            setTimeout(() => {
-              setCachedBlocksState((prev) => {
-                const next = new Map(prev);
-                next.set(path, blocks);
-                return next;
-              });
+          if (result.success && editorRef.current) {
+            console.log("[EditorProvider] 📍Server: Markdownパース開始");
+
+            // データが空の場合は空のブロックを返す
+            if (!result.data || result.data.trim() === "") {
               console.log(
-                `[EditorContext] 📍Server: 取得したデータをキャッシュに保存`
+                "[EditorProvider] 📍Server: 空のMarkdownデータ、空のブロックを返します"
               );
-            }, 0);
+              return {
+                source: "server",
+                blocks: [],
+                path,
+              };
+            }
 
-            return { source: "server", blocks, path };
+            // データのプレビューを出力
+            console.log(
+              "[EditorProvider] 📍Server: Markdownデータプレビュー:",
+              result.data.length > 100
+                ? result.data.substring(0, 100) + "..."
+                : result.data
+            );
+
+            try {
+              // editorをany型として扱い、型エラーを回避
+              const editorAny = editorRef.current as any;
+
+              // BlockNote.jsの公式APIを使用: tryParseMarkdownToBlocks
+              if (typeof editorAny.tryParseMarkdownToBlocks === "function") {
+                console.log(
+                  "[EditorProvider] 📍Server: tryParseMarkdownToBlocksを使用します"
+                );
+
+                // Markdownをブロックに変換
+                const blocks = await editorAny.tryParseMarkdownToBlocks(
+                  result.data
+                );
+
+                console.log(
+                  `[EditorContext] 📍Server: ${
+                    blocks?.length || 0
+                  }個のブロック取得 (サーバー取得成功)`
+                );
+                console.log("[EditorProvider] 📍Server: ブロック詳細:", {
+                  count: blocks?.length || 0,
+                  isArray: Array.isArray(blocks),
+                  firstBlock:
+                    blocks?.length > 0
+                      ? JSON.stringify(blocks[0]).substring(0, 100) + "..."
+                      : null,
+                });
+
+                // 取得したデータをキャッシュに保存（非同期で実行）
+                setTimeout(() => {
+                  setCachedBlocksState((prev) => {
+                    const next = new Map(prev);
+                    // nullチェックを追加して型エラーを解消
+                    if (blocks !== null) {
+                      next.set(path, blocks);
+                    }
+                    return next;
+                  });
+                  console.log(
+                    `[EditorContext] 📍Server: 取得したデータをキャッシュに保存`
+                  );
+                }, 0);
+
+                return { source: "server", blocks, path };
+              } else {
+                console.error(
+                  "[EditorProvider] 📍Server: tryParseMarkdownToBlocksメソッドが見つかりません"
+                );
+                throw new Error(
+                  "tryParseMarkdownToBlocksメソッドが見つかりません"
+                );
+              }
+            } catch (error) {
+              console.error("[EditorContext] ❌Server: パース失敗", error);
+              return {
+                source: "server",
+                blocks: [],
+                error: error instanceof Error ? error.message : "パースエラー",
+                path,
+              };
+            }
           }
-          console.log("[EditorContext] ⚠️Server: データ取得失敗");
+
+          // editorRefがnullの場合、マークダウンデータを一時保存
+          if (result.success) {
+            // editorRefがnullだが、データは取得できている場合
+            if (!editorRef.current && result.data) {
+              console.log(
+                "[EditorContext] ⚠️Server: editorRefがnullですが、マークダウンデータは取得できています"
+              );
+
+              // マークダウンデータを一時保存
+              pendingMarkdownRef.current.set(path, result.data);
+
+              console.log(
+                `[EditorContext] 📍Server: マークダウンデータを一時保存しました: ${path}`
+              );
+
+              // 空のブロックを返す（後でエディタが初期化されたときに処理される）
+              return {
+                source: "server",
+                blocks: [],
+                path,
+              };
+            } else {
+              console.log(
+                "[EditorContext] ⚠️Server: データ取得失敗 - 不明な理由"
+              );
+            }
+          } else {
+            console.log("[EditorContext] ⚠️Server: データ取得失敗 - APIエラー");
+          }
+
           return {
             source: "server",
             blocks: null,
@@ -433,6 +616,8 @@ export function EditorProvider({ children }: EditorProviderProps) {
       lastContentFetchTimeRef.current = Date.now();
       lastProcessedPathRef.current = path;
       let isUpdated = false;
+      let resultBlocks: BlockNotePackage.Block[] | null = null;
+      let resultSource: DataSource | null = null;
 
       try {
         // 優先度順にデータソースを処理
@@ -455,15 +640,18 @@ export function EditorProvider({ children }: EditorProviderProps) {
 
             const data = await fetchSources[source](path);
 
-            if (data.blocks) {
+            if (data.blocks && data.blocks.length > 0) {
               // データの適用判定
               const shouldApply = shouldApplyData(data);
               if (shouldApply) {
                 // データの適用
                 await applyData(data);
+                resultBlocks = data.blocks;
+                resultSource = data.source;
                 isUpdated = true;
                 console.log(
-                  `[EditorProvider] ✅ ${source}からのデータを適用: ${path}`
+                  `[EditorProvider] ✅ ${source}からのデータを適用: ${path}`,
+                  { blocksCount: data.blocks.length }
                 );
 
                 // contextまたはlocalStorageからデータが取得できた場合、キャッシュヒットとみなす
@@ -514,8 +702,8 @@ export function EditorProvider({ children }: EditorProviderProps) {
       }
 
       return {
-        blocks: editorStateRef.current.blocks,
-        source: editorStateRef.current.source,
+        blocks: resultBlocks || [],
+        source: resultSource,
         isUpdated,
       };
     },
@@ -841,91 +1029,28 @@ export function EditorProvider({ children }: EditorProviderProps) {
     }
   };
 
-  // エディタインスタンスの初期化
+  // エディタの初期化処理
   const editor = useMemo(() => {
     // サーバーサイドでは実行しない
     if (typeof window === "undefined") return null;
 
     try {
-      // BlockNotePackageの内容を確認
-      console.log(
-        "[EditorProvider] BlockNotePackage:",
-        Object.keys(BlockNotePackage)
-      );
-
-      // BlockNoteEditorが存在するか確認
-      if (!BlockNotePackage || typeof BlockNotePackage !== "object") {
-        console.error("[EditorProvider] ⚠️ BlockNotePackageが存在しません");
-        throw new Error("BlockNotePackageが見つかりません");
-      }
-
-      // BlockNoteEditorを取得
-      const BlockNoteEditor = BlockNotePackage.BlockNoteEditor;
-
-      if (!BlockNoteEditor) {
-        console.error("[EditorProvider] ⚠️ BlockNoteEditorが存在しません");
-        throw new Error("BlockNoteEditorが見つかりません");
-      }
-
-      console.log("[EditorProvider] BlockNoteEditor:", BlockNoteEditor);
-
-      // BlockNoteEditorの詳細情報を出力
-      console.log(
-        "[EditorProvider] BlockNoteEditor type:",
-        typeof BlockNoteEditor
-      );
-      console.log(
-        "[EditorProvider] BlockNoteEditor properties:",
-        Object.keys(BlockNoteEditor)
-      );
-      console.log(
-        "[EditorProvider] BlockNoteEditor prototype:",
-        Object.getPrototypeOf(BlockNoteEditor)
-      );
-
-      // BlockNoteEditor.createが関数かどうか確認
-      if (typeof BlockNoteEditor.create !== "function") {
-        console.error(
-          "[EditorProvider] ⚠️ BlockNoteEditor.createが関数ではありません:",
-          typeof BlockNoteEditor.create
-        );
-        throw new Error("BlockNoteEditor.createが関数ではありません");
-      }
-
-      // 安全にBlockNoteEditorを作成
-      console.log("[EditorProvider] BlockNoteEditor.createを呼び出します");
-      const newEditor = BlockNoteEditor.create({
+      // 型エラーを回避するため、完全にany型として扱う
+      const createEditorOptions: any = {
         uploadFile,
-      });
+        // 空の初期コンテンツ（最小限のパラグラフ）
+        initialContent: [{ type: "paragraph" }],
+      };
+
+      // any型を使用して型エラーを回避
+      const newEditor = (BlockNotePackage.BlockNoteEditor.create as any)(
+        createEditorOptions
+      );
 
       console.log("[EditorProvider] BlockNoteEditor created:", newEditor);
 
-      // 作成されたエディタの詳細情報を出力
-      console.log("[EditorProvider] Created editor type:", typeof newEditor);
-      console.log(
-        "[EditorProvider] Created editor properties:",
-        Object.keys(newEditor)
-      );
-
-      // topLevelBlocksプロパティの確認
-      if (!newEditor.topLevelBlocks) {
-        console.warn(
-          "[EditorProvider] ⚠️ 作成されたエディタにtopLevelBlocksプロパティがありません"
-        );
-        console.log("[EditorProvider] Checking for alternative properties:");
-
-        // documentプロパティの確認
-        if (newEditor.document) {
-          console.log(
-            "[EditorProvider] Editor has document property:",
-            newEditor.document
-          );
-          console.log(
-            "[EditorProvider] Document properties:",
-            Object.keys(newEditor.document)
-          );
-        }
-      }
+      // エディタをrefに保存
+      editorRef.current = newEditor;
 
       return newEditor;
     } catch (error) {
@@ -938,8 +1063,58 @@ export function EditorProvider({ children }: EditorProviderProps) {
     }
   }, []);
 
+  // エディタが初期化された後に保留中のマークダウンデータを処理
+  useEffect(() => {
+    if (!editor || pendingMarkdownRef.current.size === 0) return;
+
+    console.log(
+      `[EditorProvider] 保留中のマークダウンデータが${pendingMarkdownRef.current.size}件あります`
+    );
+
+    // 非同期で処理するため、setTimeout内で実行
+    setTimeout(async () => {
+      // Array.fromを使用してMapをエントリーの配列に変換
+      const entries = Array.from(pendingMarkdownRef.current.entries());
+      for (const [path, markdown] of entries) {
+        try {
+          console.log(
+            `[EditorProvider] 保留中のマークダウンデータを処理: ${path}`
+          );
+
+          // エディタインスタンスを使用してマークダウンをパース
+          if (typeof editor.tryParseMarkdownToBlocks === "function") {
+            const blocks = await (editor as any).tryParseMarkdownToBlocks(
+              markdown
+            );
+
+            console.log(
+              `[EditorProvider] パース成功: ${blocks.length}個のブロック`
+            );
+
+            // キャッシュに保存
+            setCachedBlocksState((prev) => {
+              const next = new Map(prev);
+              if (blocks !== null) {
+                next.set(path, blocks);
+              }
+              return next;
+            });
+
+            // 処理済みのデータを削除
+            pendingMarkdownRef.current.delete(path);
+          }
+        } catch (error) {
+          console.error(
+            `[EditorProvider] 保留中のマークダウンデータの処理に失敗: ${path}`,
+            error
+          );
+        }
+      }
+    }, 0);
+  }, [editor]);
+
   const contextValue: EditorContextType = {
-    editor: editor,
+    editor: editorRef.current,
     cachedBlocks,
     setCachedBlocks,
     clearCachedBlocks,

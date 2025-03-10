@@ -26,32 +26,87 @@ export type ActionResult<T = void> = {
 export async function getFileContent(
   filePath: string
 ): Promise<ActionResult<string>> {
+  console.log(`[getFileContent] 開始: パス="${filePath}"`);
+
   try {
     const fsPath = toFsPath(filePath);
+    console.log(`[getFileContent] ファイルシステムパス: "${fsPath}"`);
 
     // ファイルの存在確認
     try {
       const stats = await fs.stat(fsPath);
+      console.log(`[getFileContent] ファイル情報:`, {
+        isFile: stats.isFile(),
+        isDirectory: stats.isDirectory(),
+        size: stats.size,
+        mtime: stats.mtime,
+        path: filePath,
+        fsPath: fsPath,
+      });
+
       if (stats.isDirectory()) {
+        console.log(
+          `[getFileContent] エラー: 指定されたパスはディレクトリです: ${filePath}`
+        );
         return {
           success: false,
           error: `指定されたパスはディレクトリです: ${filePath}`,
         };
       }
     } catch (error) {
+      console.log(
+        `[getFileContent] エラー: ファイルが存在しません: ${filePath}`,
+        error
+      );
+
+      // ファイルが存在しない場合は空のファイルを返す
+      console.log(`[getFileContent] 空のファイルを返します: ${filePath}`);
       return {
-        success: false,
-        error: `ファイルが存在しません: ${filePath}`,
+        success: true,
+        data: "",
       };
     }
 
+    console.log(`[getFileContent] ファイル読み込み開始: "${fsPath}"`);
     const content = await fs.readFile(fsPath, "utf-8");
+    console.log(
+      `[getFileContent] ファイル読み込み成功: 長さ=${content.length}`
+    );
+
+    // 内容の先頭部分をログに出力
+    const preview =
+      content.length > 100 ? content.substring(0, 100) + "..." : content;
+    console.log(`[getFileContent] ファイル内容プレビュー: "${preview}"`);
+
+    // ファイル内容の詳細情報
+    console.log(`[getFileContent] ファイル内容の詳細:`, {
+      length: content.length,
+      isEmpty: content.trim() === "",
+      firstLine: content.split("\n")[0] || "",
+      lineCount: content.split("\n").length,
+      containsMarkdown: /[#*_`]/.test(content), // 簡易的なMarkdown判定
+      containsHTML: /<\/?[a-z][\s\S]*>/i.test(content), // 簡易的なHTML判定
+      encoding: "utf-8",
+      contentType: "text/markdown", // 明示的にMarkdownとして扱う
+    });
+
     return { success: true, data: content };
   } catch (error) {
-    console.error("Error reading file:", error);
+    console.error("[getFileContent] ファイル読み込みエラー:", error);
+    console.error("[getFileContent] エラーの詳細:", {
+      path: filePath,
+      errorType: error instanceof Error ? "Error" : typeof error,
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorStack: error instanceof Error ? error.stack : undefined,
+    });
+
+    // エラーが発生した場合も空のファイルを返す
+    console.log(
+      `[getFileContent] エラーが発生したため空のファイルを返します: ${filePath}`
+    );
     return {
-      success: false,
-      error: "ファイルの読み込みに失敗しました",
+      success: true,
+      data: "",
     };
   }
 }

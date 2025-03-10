@@ -1,3 +1,25 @@
+/**
+ * QuickmemoEditor: クイックメモ機能のためのエディタコンポーネント
+ *
+ * 責任分担:
+ * 1. 一時的なメモの編集と保存
+ *   - ローカルストレージを使用した内容の永続化
+ *   - 新規ファイルとしての保存機能
+ *
+ * 2. FileEditorとの連携
+ *   - FileEditorコンポーネントを利用してエディタUIを表示
+ *   - EditorContextを通じてエディタの状態にアクセス
+ *
+ * 3. クイックメモ固有の機能
+ *   - 自動保存
+ *   - 新規ファイルへの変換
+ *
+ * EditorContextとの連携:
+ *   - EditorContextが提供する機能を利用
+ *   - マークダウンパース処理はEditorContextに委譲
+ *   - データの永続化はEditorContextに委譲
+ */
+
 "use client";
 
 import { FileEditor } from "@/app/[...path]/FileEditor";
@@ -51,13 +73,31 @@ export function QuickmemoEditor() {
 
     const handleEditorUpdate = () => {
       try {
-        // エディタの内容をMarkdown形式で取得
-        if (!editor.topLevelBlocks) {
-          console.error("[QuickmemoEditor] topLevelBlocksが存在しません");
+        // BlockNote v0.25.1のAPIに合わせてブロックを取得
+        const editorAny = editor as any;
+        let blocks: any[] = [];
+
+        // document.blocksまたはdocument.getBlocksを使用
+        if (editorAny.document) {
+          if (typeof editorAny.document.getBlocks === "function") {
+            blocks = editorAny.document.getBlocks();
+            console.log("[QuickmemoEditor] document.getBlocksからブロック取得");
+          } else if (editorAny.document.blocks) {
+            blocks = editorAny.document.blocks;
+            console.log("[QuickmemoEditor] document.blocksからブロック取得");
+          } else {
+            console.error(
+              "[QuickmemoEditor] documentオブジェクトからブロックを取得できません"
+            );
+            return;
+          }
+        } else {
+          console.error(
+            "[QuickmemoEditor] documentオブジェクトが見つかりません"
+          );
           return;
         }
 
-        const blocks = editor.topLevelBlocks;
         if (blocks.length === 0) return;
 
         // ブロックの内容をlocalStorageに保存
@@ -134,36 +174,62 @@ export function QuickmemoEditor() {
     return markdown.trim();
   };
 
-  const handleSaveToFile = useCallback(async () => {
+  // 新規ファイルとして保存する
+  const handleSaveAsNewFile = useCallback(async () => {
+    if (!editor) {
+      toast.error("エディタが初期化されていません");
+      return;
+    }
+
     try {
-      if (!editor) {
-        toast.error("エディタが初期化されていません");
+      // BlockNote v0.25.1のAPIに合わせてブロックを取得
+      const editorAny = editor as any;
+      let blocks: any[] = [];
+
+      // document.blocksまたはdocument.getBlocksを使用
+      if (editorAny.document) {
+        if (typeof editorAny.document.getBlocks === "function") {
+          blocks = editorAny.document.getBlocks();
+        } else if (editorAny.document.blocks) {
+          blocks = editorAny.document.blocks;
+        } else {
+          console.error(
+            "[QuickmemoEditor] documentオブジェクトからブロックを取得できません"
+          );
+          toast.error("エディタの内容を取得できませんでした");
+          return;
+        }
+      } else {
+        console.error("[QuickmemoEditor] documentオブジェクトが見つかりません");
+        toast.error("エディタの内容を取得できませんでした");
         return;
       }
 
-      const blocks = editor.topLevelBlocks;
-      if (blocks.length === 0) {
-        toast.error("コンテンツが空です");
-        return;
-      }
-
-      // ブロックの内容をMarkdown形式に変換
+      // ブロックの内容をMarkdownに変換
       const markdownContent = blocksToMarkdown(blocks);
-      if (!markdownContent.trim()) {
-        toast.error("コンテンツが空です");
-        return;
-      }
 
+      // 新規ファイルを作成
       const result = await handleNewFile(markdownContent, true);
-      if (result?.success && result?.path) {
+
+      // resultがundefinedでないことを確認
+      if (result && result.success && result.path) {
+        // 成功したらlocalStorageをクリア
         localStorage.removeItem("unsaved_content");
         contentRef.current = "";
+        setContent("");
+
+        // 新しいファイルに移動
         navigateToFile(result.path);
-        toast.success("ファイルを保存しました");
+        toast.success(`新規ファイルとして保存しました: ${result.path}`);
+      } else {
+        // エラーメッセージを安全に表示
+        const errorMessage =
+          result && "error" in result ? result.error : "不明なエラー";
+        toast.error(`保存に失敗しました: ${errorMessage}`);
       }
     } catch (error) {
-      console.error("Error saving file:", error);
-      toast.error("ファイルの保存に失敗しました");
+      console.error("[QuickmemoEditor] 保存エラー:", error);
+      toast.error("保存中にエラーが発生しました");
     }
   }, [editor, handleNewFile, navigateToFile]);
 
@@ -174,7 +240,7 @@ export function QuickmemoEditor() {
   return (
     <div className={styles["editor-wrapper"]}>
       <div className={styles["editor-toolbar"]}>
-        <button onClick={handleSaveToFile} className={styles["save-button"]}>
+        <button onClick={handleSaveAsNewFile} className={styles["save-button"]}>
           <Icon icon="ph:floppy-disk" width={20} height={20} />
           <span>保存</span>
         </button>
