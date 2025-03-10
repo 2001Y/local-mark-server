@@ -869,6 +869,20 @@ export function EditorProvider({ children }: EditorProviderProps) {
 
       console.log("[EditorProvider] BlockNoteEditor:", BlockNoteEditor);
 
+      // BlockNoteEditorの詳細情報を出力
+      console.log(
+        "[EditorProvider] BlockNoteEditor type:",
+        typeof BlockNoteEditor
+      );
+      console.log(
+        "[EditorProvider] BlockNoteEditor properties:",
+        Object.keys(BlockNoteEditor)
+      );
+      console.log(
+        "[EditorProvider] BlockNoteEditor prototype:",
+        Object.getPrototypeOf(BlockNoteEditor)
+      );
+
       // BlockNoteEditor.createが関数かどうか確認
       if (typeof BlockNoteEditor.create !== "function") {
         console.error(
@@ -885,6 +899,34 @@ export function EditorProvider({ children }: EditorProviderProps) {
       });
 
       console.log("[EditorProvider] BlockNoteEditor created:", newEditor);
+
+      // 作成されたエディタの詳細情報を出力
+      console.log("[EditorProvider] Created editor type:", typeof newEditor);
+      console.log(
+        "[EditorProvider] Created editor properties:",
+        Object.keys(newEditor)
+      );
+
+      // topLevelBlocksプロパティの確認
+      if (!newEditor.topLevelBlocks) {
+        console.warn(
+          "[EditorProvider] ⚠️ 作成されたエディタにtopLevelBlocksプロパティがありません"
+        );
+        console.log("[EditorProvider] Checking for alternative properties:");
+
+        // documentプロパティの確認
+        if (newEditor.document) {
+          console.log(
+            "[EditorProvider] Editor has document property:",
+            newEditor.document
+          );
+          console.log(
+            "[EditorProvider] Document properties:",
+            Object.keys(newEditor.document)
+          );
+        }
+      }
+
       return newEditor;
     } catch (error) {
       console.error(

@@ -91,6 +91,34 @@ export function FileEditor({ filePath, initialContent }: FileEditorProps) {
         "[FileEditor] Editor prototype:",
         Object.getPrototypeOf(editor)
       );
+
+      // 詳細なデバッグ情報を追加
+      console.log(
+        "[FileEditor] Editor constructor name:",
+        editor.constructor.name
+      );
+      // 型エラーを修正 - instanceof演算子は型ではなく値を必要とするため、この行をコメントアウト
+      // console.log("[FileEditor] Editor instanceof BlockNoteEditor:", editor instanceof BlockNoteEditor);
+
+      // プロトタイプチェーン全体を調査
+      let proto = Object.getPrototypeOf(editor);
+      let protoChain = [];
+      while (proto) {
+        protoChain.push(Object.getOwnPropertyNames(proto));
+        proto = Object.getPrototypeOf(proto);
+      }
+      console.log("[FileEditor] Editor prototype chain:", protoChain);
+
+      // document プロパティの確認
+      console.log("[FileEditor] Editor document:", editor.document);
+
+      // topLevelBlocks の代わりに使えるプロパティやメソッドを探す
+      if (editor.document) {
+        console.log(
+          "[FileEditor] Editor document properties:",
+          Object.keys(editor.document)
+        );
+      }
     }
   }, [editor]);
 
@@ -124,19 +152,63 @@ export function FileEditor({ filePath, initialContent }: FileEditorProps) {
 
       try {
         // エディタからブロックを取得
-        // topLevelBlocksが存在するか確認
-        if (!editor.topLevelBlocks) {
-          console.error(
-            `[FileEditor] topLevelBlocksが存在しません: ${filePath}`
+        console.log(`[FileEditor] エディタのプロパティ:`, Object.keys(editor));
+
+        // editorをany型として扱い、型エラーを回避
+        const editorAny = editor as any;
+
+        // topLevelBlocksが存在するか確認し、存在しない場合は代替手段を使用
+        let blocks: any[] = [];
+        if ("topLevelBlocks" in editorAny) {
+          blocks = editorAny.topLevelBlocks;
+          console.log(
+            `[FileEditor] topLevelBlocksからブロック取得: count=${blocks.length}, path=${filePath}`
           );
-          setEditorState((prev) => ({
-            ...prev,
-            isSaving: false,
-          }));
-          return;
+        } else if (
+          editorAny.document &&
+          typeof editorAny.document === "object" &&
+          "blocks" in editorAny.document
+        ) {
+          blocks = editorAny.document.blocks;
+          console.log(
+            `[FileEditor] document.blocksからブロック取得: count=${blocks.length}, path=${filePath}`
+          );
+        } else {
+          console.error(`[FileEditor] ブロックを取得できません: ${filePath}`);
+
+          // 代替手段を探す
+          console.log(`[FileEditor] 代替手段を探します`);
+
+          // documentプロパティを確認
+          if (editorAny.document) {
+            console.log(`[FileEditor] document:`, editorAny.document);
+            console.log(
+              `[FileEditor] documentのプロパティ:`,
+              Object.keys(editorAny.document)
+            );
+
+            // blocksプロパティがあるか確認
+            if (
+              typeof editorAny.document === "object" &&
+              "blocks" in editorAny.document
+            ) {
+              console.log(
+                `[FileEditor] document.blocksを発見:`,
+                editorAny.document.blocks
+              );
+              blocks = editorAny.document.blocks;
+            }
+          }
+
+          if (blocks.length === 0) {
+            setEditorState((prev) => ({
+              ...prev,
+              isSaving: false,
+            }));
+            return;
+          }
         }
 
-        const blocks = editor.topLevelBlocks;
         console.log(
           `[FileEditor] ブロック取得: count=${blocks.length}, path=${filePath}`
         );
@@ -392,19 +464,22 @@ export function FileEditor({ filePath, initialContent }: FileEditorProps) {
       }
 
       try {
+        // editorをany型として扱い、型エラーを回避
+        const editorAny = editor as any;
+
         // blocksToMarkdownLossyメソッドが存在するか確認
-        if (typeof editor.blocksToMarkdownLossy !== "function") {
+        if (typeof editorAny.blocksToMarkdownLossy === "function") {
+          const markdown = await editorAny.blocksToMarkdownLossy(blocks);
+          setEditorState((prev) => ({
+            ...prev,
+            content: markdown,
+          }));
+        } else {
           console.error(
             "[FileEditor] blocksToMarkdownLossyメソッドが存在しません"
           );
           throw new Error("blocksToMarkdownLossyメソッドが見つかりません");
         }
-
-        const markdown = await editor.blocksToMarkdownLossy(blocks);
-        setEditorState((prev) => ({
-          ...prev,
-          content: markdown,
-        }));
       } catch (error) {
         console.error(
           "[FileEditor] Error converting blocks to markdown:",
@@ -463,8 +538,100 @@ export function FileEditor({ filePath, initialContent }: FileEditorProps) {
 
   // エディタのメソッドが存在するか確認
   const editorMethods = Object.keys(editor);
+  console.log("[FileEditor] Checking for topLevelBlocks method:", {
+    methods: editorMethods,
+    hasTopLevelBlocks: editorMethods.includes("topLevelBlocks"),
+    hasDocument: editorMethods.includes("document"),
+    documentType: editor.document ? typeof editor.document : "undefined",
+  });
+
+  // editorをany型として扱い、型エラーを回避
+  const editorAny = editor as any;
+
+  // topLevelBlocksが存在しない場合は代替手段を使用
   if (!editorMethods.includes("topLevelBlocks")) {
     console.error("[FileEditor] エディタにtopLevelBlocksメソッドがありません");
+
+    // document.blocksが存在するか確認
+    if (editorAny.document && typeof editorAny.document === "object") {
+      console.log("[FileEditor] document.blocksを使用します");
+
+      // documentオブジェクトのプロパティを確認
+      const documentProps = Object.keys(editorAny.document);
+      console.log("[FileEditor] Document properties:", documentProps);
+
+      // blocksプロパティがあるか確認
+      if (documentProps.includes("blocks")) {
+        console.log(
+          "[FileEditor] document.blocksを使用してエディタを初期化します"
+        );
+
+        // BlockNoteViewをレンダリング
+        return (
+          <DragDropHandler>
+            <div className="editor-container" ref={editorContainerRef}>
+              <MantineProvider
+                theme={createTheme({})}
+                defaultColorScheme="light"
+              >
+                <ErrorBoundary
+                  fallback={
+                    <div className="editor-error">
+                      エディタのレンダリングに失敗しました
+                    </div>
+                  }
+                >
+                  <BlockNoteView editor={editor} ref={editorViewRef} />
+                </ErrorBoundary>
+              </MantineProvider>
+              <style jsx>{`
+                .editor-container {
+                  width: 100%;
+                  height: 100%;
+                  display: flex;
+                  flex-direction: column;
+                  position: relative;
+                }
+              `}</style>
+            </div>
+          </DragDropHandler>
+        );
+      }
+    }
+
+    // _tiptapEditorを使用する方法も試す
+    if (editorAny._tiptapEditor) {
+      console.log("[FileEditor] _tiptapEditorを使用します");
+
+      // BlockNoteViewをレンダリング
+      return (
+        <DragDropHandler>
+          <div className="editor-container" ref={editorContainerRef}>
+            <MantineProvider theme={createTheme({})} defaultColorScheme="light">
+              <ErrorBoundary
+                fallback={
+                  <div className="editor-error">
+                    エディタのレンダリングに失敗しました
+                  </div>
+                }
+              >
+                <BlockNoteView editor={editor} ref={editorViewRef} />
+              </ErrorBoundary>
+            </MantineProvider>
+            <style jsx>{`
+              .editor-container {
+                width: 100%;
+                height: 100%;
+                display: flex;
+                flex-direction: column;
+                position: relative;
+              }
+            `}</style>
+          </div>
+        </DragDropHandler>
+      );
+    }
+
     return (
       <div className="editor-error">エディタの初期化に問題が発生しました</div>
     );
