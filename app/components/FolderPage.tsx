@@ -201,7 +201,7 @@ export function FolderPage({
   }, [router]);
 
   return (
-    <div className="folder-container">
+    <div className="folder-container flex-1 overflow-auto">
       <div className="page-title">
         <h1>
           {isRoot ? (

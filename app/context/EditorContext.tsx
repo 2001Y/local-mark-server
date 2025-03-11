@@ -823,8 +823,87 @@ export function EditorProvider({ children }: EditorProviderProps) {
         // 6. サーバーへの保存
         if (editorRef.current) {
           try {
-            const markdownContent =
-              await editorRef.current.blocksToMarkdownLossy(blocks);
+            // 画像ブロックを含むMarkdownへの変換を改善
+            let markdownContent = "";
+
+            try {
+              // 画像ブロックの検出
+              const hasImageBlocks = blocks.some(
+                (block) => block.type === "image"
+              );
+              console.log(
+                `[EditorProvider] 画像ブロックの有無:`,
+                hasImageBlocks
+              );
+
+              // 最新のBlockNote.jsのAPIを使用
+              markdownContent = await editorRef.current.blocksToMarkdownLossy(
+                blocks
+              );
+
+              // 画像ブロックの処理
+              if (hasImageBlocks) {
+                console.log(
+                  `[EditorProvider] 画像ブロックを含むMarkdownに変換します`
+                );
+
+                // 画像ブロックのMarkdown生成
+                const imageMarkdown = blocks
+                  .filter(
+                    (block) =>
+                      block.type === "image" &&
+                      block.props &&
+                      (block.props as any).url
+                  )
+                  .map((block) => `\n![image](${(block.props as any).url})\n\n`)
+                  .join("");
+
+                // 既存のMarkdownに画像Markdownを追加
+                if (imageMarkdown) {
+                  markdownContent += "\n" + imageMarkdown;
+                }
+              }
+
+              // 変換結果をチェック
+              if (
+                !markdownContent ||
+                markdownContent.includes("[object Object]")
+              ) {
+                console.warn(
+                  `[EditorProvider] ⚠️ blocksToMarkdownLossyの結果が不正です。代替手段を試みます。`
+                );
+
+                // 代替手段: 独自の変換ロジックを使用
+                markdownContent = blocks
+                  .map((block) => {
+                    // 画像ブロックの処理
+                    if (
+                      block.type === "image" &&
+                      block.props &&
+                      (block.props as any).url
+                    ) {
+                      return `![image](${(block.props as any).url})\n\n`;
+                    }
+
+                    // その他のブロックはデフォルトの変換を使用
+                    return "";
+                  })
+                  .join("");
+
+                // 独自変換で何も生成されなかった場合は元の変換結果を使用
+                if (!markdownContent.trim()) {
+                  markdownContent =
+                    await editorRef.current.blocksToMarkdownLossy(blocks);
+                }
+              }
+            } catch (conversionError) {
+              console.error(
+                `[EditorProvider] ❌ Markdown変換エラー:`,
+                conversionError
+              );
+              // エラー発生時は代替手段を試みる
+              markdownContent = JSON.stringify(blocks);
+            }
 
             // デバッグ用のログ
             console.log(`[EditorProvider] 📄 Markdown変換結果:`, {
@@ -974,16 +1053,20 @@ export function EditorProvider({ children }: EditorProviderProps) {
       }
 
       const result = await response.json();
+      console.log("[EditorProvider] 📊 アップロード結果:", result);
 
       // ファイルが既に存在する場合の処理
-      if (result.exists) {
+      if (result.duplicate || result.exists) {
         console.log(
           "[EditorProvider] ⚠️ ファイルが既に存在します:",
           result.message
         );
 
-        // ユーザーに確認
-        const confirmOverwrite = window.confirm(result.message);
+        // 明示的に確認ダイアログを表示
+        const message =
+          result.message || "ファイルが既に存在します。上書きしますか？";
+        const confirmOverwrite = window.confirm(message);
+        console.log("[EditorProvider] 🔄 上書き確認結果:", confirmOverwrite);
 
         if (confirmOverwrite) {
           console.log("[EditorProvider] 🔄 ファイルを上書きします");
@@ -1009,23 +1092,110 @@ export function EditorProvider({ children }: EditorProviderProps) {
           const overwriteResult = await overwriteResponse.json();
           console.log("[EditorProvider] ✅ 画像上書き成功:", overwriteResult);
 
+          // 画像ブロックを挿入
+          await insertImageBlock(overwriteResult.url);
           return overwriteResult.url;
         } else {
           console.log(
             "[EditorProvider] ⏭️ ファイルの上書きをキャンセルしました"
           );
-          // 既存のファイルのURLを返す
+          // 既存のURLを返す
+          // 画像ブロックを挿入
+          await insertImageBlock(result.url);
           return result.url;
         }
       }
 
       console.log("[EditorProvider] ✅ 画像アップロード成功:", result);
 
+      // 画像ブロックを挿入
+      await insertImageBlock(result.url);
       return result.url;
     } catch (error) {
       console.error("[EditorProvider] ❌ 画像アップロードエラー:", error);
       toast.error("画像のアップロードに失敗しました");
       throw error;
+    }
+  };
+
+  // 画像ブロックを挿入する関数
+  const insertImageBlock = async (url: string) => {
+    if (!editorRef.current) {
+      console.error("[EditorProvider] ❌ エディタが初期化されていません");
+      return;
+    }
+
+    try {
+      console.log("[EditorProvider] 🖼️ 画像ブロックを挿入します:", url);
+
+      // 画像ブロックを作成
+      const imageBlock = {
+        type: "image",
+        props: { url } as any,
+      };
+
+      // エディタに画像ブロックを挿入
+      const editorAny = editorRef.current as any;
+
+      // 方法1: replaceBlocks APIを使用（より安全）
+      if (typeof editorAny.replaceBlocks === "function" && editorAny.document) {
+        // 現在のドキュメントを取得し、画像ブロックを追加
+        const currentBlocks = Array.isArray(editorAny.document)
+          ? [...editorAny.document]
+          : [];
+
+        // 新しいブロック配列を作成
+        const newBlocks = [...currentBlocks, imageBlock];
+
+        // ドキュメント全体を置き換え
+        editorAny.replaceBlocks(editorAny.document, newBlocks);
+        console.log(
+          "[EditorProvider] ✅ replaceBlocksで画像ブロックを挿入しました"
+        );
+      }
+      // 方法2: insertBlocks APIを使用（参照ブロックが必要）
+      else if (
+        typeof editorAny.insertBlocks === "function" &&
+        Array.isArray(editorAny.document) &&
+        editorAny.document.length > 0
+      ) {
+        // 最後のブロックの後に挿入
+        const lastBlock = editorAny.document[editorAny.document.length - 1];
+        editorAny.insertBlocks([imageBlock], lastBlock, "after");
+        console.log(
+          "[EditorProvider] ✅ insertBlocksで画像ブロックを挿入しました（最後のブロックの後）"
+        );
+      }
+      // 方法3: 空のドキュメントの場合
+      else if (typeof editorAny.insertBlocks === "function") {
+        // 新しいパラグラフブロックを作成して挿入
+        const paragraphBlock = { type: "paragraph", content: "" };
+        editorAny.replaceBlocks([], [paragraphBlock]);
+
+        // パラグラフブロックの後に画像ブロックを挿入
+        setTimeout(() => {
+          if (
+            Array.isArray(editorAny.document) &&
+            editorAny.document.length > 0
+          ) {
+            const firstBlock = editorAny.document[0];
+            editorAny.insertBlocks([imageBlock], firstBlock, "after");
+            console.log(
+              "[EditorProvider] ✅ 空のドキュメントに画像ブロックを挿入しました"
+            );
+          }
+        }, 100);
+      } else {
+        console.error(
+          "[EditorProvider] ❌ 画像ブロックを挿入するAPIが見つかりません"
+        );
+        console.log(
+          "[EditorProvider] 📊 エディタのプロパティ:",
+          Object.keys(editorAny)
+        );
+      }
+    } catch (error) {
+      console.error("[EditorProvider] ❌ 画像ブロック挿入エラー:", error);
     }
   };
 

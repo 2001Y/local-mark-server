@@ -34,7 +34,7 @@ export function PageClient({
   if (!currentPath) return null;
 
   return (
-    <main className="flex-1 overflow-auto">
+    <main className="flex-1 flex flex-col overflow-hidden">
       {isDirectory ? (
         <FolderPage
           folderPath={currentPath}

@@ -83,7 +83,8 @@ export function FileEditor({ filePath, initialContent }: FileEditorProps) {
   };
 
   const [editorState, setEditorState] = useState<EditorState>(initialState);
-  const { loadContent, editor, setCachedBlocks, editorViewRef } = useEditor();
+  const { loadContent, editor, setCachedBlocks, editorViewRef, cachedBlocks } =
+    useEditor();
   const isMounted = useRef(true);
   const timeoutIdRef = useRef<NodeJS.Timeout>();
   const lastLoadTimeRef = useRef<number>(0);
@@ -181,20 +182,35 @@ export function FileEditor({ filePath, initialContent }: FileEditorProps) {
         // エディタからブロックを取得
         console.log(`[FileEditor] エディタのプロパティ:`, Object.keys(editor));
 
-        // BlockNote v0.25.1のAPIに合わせてブロックを取得
+        // BlockNote.jsの最新APIに合わせてブロックを取得
         const editorAny = editor as any;
         let blocks: any[] = [];
 
-        // 最新のAPI: document.blocksまたはdocument.getBlocksを使用
+        // 複数の方法でブロックの取得を試みる
         if (editorAny.document) {
-          if (typeof editorAny.document.getBlocks === "function") {
-            // getBlocksメソッドが利用可能な場合
+          // 方法1: document配列を直接使用
+          if (Array.isArray(editorAny.document)) {
+            blocks = editorAny.document;
+            console.log(
+              `[FileEditor] document配列からブロック取得: count=${blocks.length}, path=${filePath}`
+            );
+          }
+          // 方法2: document.getTopLevelBlocks()を使用
+          else if (typeof editorAny.document.getTopLevelBlocks === "function") {
+            blocks = editorAny.document.getTopLevelBlocks();
+            console.log(
+              `[FileEditor] document.getTopLevelBlocksからブロック取得: count=${blocks.length}, path=${filePath}`
+            );
+          }
+          // 方法3: document.getBlocks()を使用
+          else if (typeof editorAny.document.getBlocks === "function") {
             blocks = editorAny.document.getBlocks();
             console.log(
               `[FileEditor] document.getBlocksからブロック取得: count=${blocks.length}, path=${filePath}`
             );
-          } else if (editorAny.document.blocks) {
-            // blocksプロパティが利用可能な場合
+          }
+          // 方法4: document.blocksを使用
+          else if (editorAny.document.blocks) {
             blocks = editorAny.document.blocks;
             console.log(
               `[FileEditor] document.blocksからブロック取得: count=${blocks.length}, path=${filePath}`
@@ -202,6 +218,31 @@ export function FileEditor({ filePath, initialContent }: FileEditorProps) {
           } else {
             console.error(
               `[FileEditor] documentオブジェクトからブロックを取得できません: ${filePath}`
+            );
+          }
+        }
+        // 方法5: getContent()メソッドを使用
+        else if (typeof editorAny.getContent === "function") {
+          blocks = editorAny.getContent();
+          console.log(
+            `[FileEditor] getContentからブロック取得: count=${blocks.length}, path=${filePath}`
+          );
+        }
+        // 方法6: _tiptapEditorから取得を試みる
+        else if (editorAny._tiptapEditor && editorAny._tiptapEditor.state) {
+          try {
+            console.log(`[FileEditor] _tiptapEditorからの取得を試みます`);
+            // デバッグ情報
+            console.log(
+              `[FileEditor] _tiptapEditorのプロパティ:`,
+              Object.keys(editorAny._tiptapEditor)
+            );
+
+            // ここでは実際の取得処理は行わず、デバッグ情報のみ出力
+          } catch (tiptapError) {
+            console.error(
+              `[FileEditor] _tiptapEditorからの取得エラー:`,
+              tiptapError
             );
           }
         } else {
@@ -216,18 +257,33 @@ export function FileEditor({ filePath, initialContent }: FileEditorProps) {
 
         if (blocks.length === 0) {
           console.warn(`[FileEditor] ブロックが空です: ${filePath}`);
-          setEditorState((prev) => ({
-            ...prev,
-            isSaving: false,
-          }));
-          return;
+          // 最後に保存された状態を使用するフォールバック処理
+          const cachedFileBlocks = cachedBlocks.get(filePath);
+          if (cachedFileBlocks && cachedFileBlocks.length > 0) {
+            console.log(
+              `[FileEditor] キャッシュからブロックを復元: ${filePath}`
+            );
+            blocks = cachedFileBlocks;
+          } else {
+            setEditorState((prev) => ({
+              ...prev,
+              isSaving: false,
+            }));
+            return;
+          }
         }
 
-        // ブロックの内容をログ
+        // ブロックの内容をログ（画像ブロックの詳細も表示）
         console.log(`[FileEditor] 保存するブロックの詳細:`, {
           count: blocks.length,
           firstBlockType: blocks[0]?.type,
           firstBlockContent: blocks[0]?.content,
+          hasImageBlocks: blocks.some(
+            (block) =>
+              block.type === "image" ||
+              (block.content &&
+                block.content.some((item: any) => item.type === "image"))
+          ),
           path: filePath,
         });
 
@@ -288,7 +344,7 @@ export function FileEditor({ filePath, initialContent }: FileEditorProps) {
         toast.error("保存に失敗しました");
       }
     },
-    [filePath, editorState.isSaving, setCachedBlocks]
+    [filePath, editorState.isSaving, setCachedBlocks, cachedBlocks]
   );
 
   // デバウンスされた保存処理
@@ -581,9 +637,35 @@ export function FileEditor({ filePath, initialContent }: FileEditorProps) {
         // editorをany型として扱い、型エラーを回避
         const editorAny = editor as any;
 
+        // 画像ブロックの検出
+        const hasImageBlocks = blocks.some((block) => block.type === "image");
+        console.log("[FileEditor] 画像ブロックの有無:", hasImageBlocks);
+
         // BlockNote.jsの公式APIを使用: blocksToMarkdownLossy
         if (typeof editorAny.blocksToMarkdownLossy === "function") {
-          const markdown = await editorAny.blocksToMarkdownLossy(blocks);
+          let markdown = await editorAny.blocksToMarkdownLossy(blocks);
+
+          // 画像ブロックの処理
+          if (hasImageBlocks) {
+            console.log("[FileEditor] 画像ブロックを含むMarkdownに変換します");
+
+            // 画像ブロックのMarkdown生成
+            const imageMarkdown = blocks
+              .filter(
+                (block) =>
+                  block.type === "image" &&
+                  block.props &&
+                  (block.props as any).url
+              )
+              .map((block) => `\n![image](${(block.props as any).url})\n\n`)
+              .join("");
+
+            // 既存のMarkdownに画像Markdownを追加
+            if (imageMarkdown) {
+              markdown += "\n" + imageMarkdown;
+            }
+          }
+
           setEditorState((prev) => ({
             ...prev,
             content: markdown,
@@ -738,131 +820,6 @@ export function FileEditor({ filePath, initialContent }: FileEditorProps) {
               </div>
             }
           >
-            {/* デバッグ情報を表示
-            <div
-              className="debug-info"
-              style={{
-                fontSize: "12px",
-                padding: "5px",
-                background: "#f5f5f5",
-                display: "block",
-              }}
-            >
-              <div>ブロック数: {editorState.blocks?.length || 0}</div>
-              <div>ファイルパス: {filePath}</div>
-              <div>
-                初期ロード完了: {isInitialLoadingRef.current ? "No" : "Yes"}
-              </div>
-              <div>
-                エディタメソッド:{" "}
-                {editor
-                  ? Object.keys(editor).join(", ").substring(0, 100) + "..."
-                  : "なし"}
-              </div>
-              <div>
-                最初のブロック:{" "}
-                {editorState.blocks?.length > 0
-                  ? JSON.stringify(editorState.blocks[0]).substring(0, 100) +
-                    "..."
-                  : "なし"}
-              </div>
-              <div>
-                BlockNoteView ref: {editorViewRef.current ? "あり" : "なし"}
-              </div>
-              <div>
-                <button
-                  onClick={() => {
-                    // デバッグ用: ローカルストレージをクリア
-                    localStorage.clear();
-                    window.location.reload();
-                  }}
-                  style={{ padding: "2px 5px", fontSize: "10px" }}
-                >
-                  キャッシュクリア
-                </button>
-                <button
-                  onClick={() => {
-                    // デバッグ用: ブロックを明示的に適用
-                    if (
-                      editor &&
-                      editorState.blocks &&
-                      editorState.blocks.length > 0
-                    ) {
-                      try {
-                        const editorAny = editor as any;
-                        console.log(
-                          "[FileEditor] 🔍 ブロック適用ボタンクリック:",
-                          {
-                            editorExists: !!editorAny,
-                            hasReplaceBlocks:
-                              typeof editorAny.replaceBlocks === "function",
-                            hasDocument: !!editorAny.document,
-                            blocksCount: editorState.blocks.length,
-                            firstBlock:
-                              JSON.stringify(editorState.blocks[0]).substring(
-                                0,
-                                100
-                              ) + "...",
-                          }
-                        );
-
-                        if (
-                          typeof editorAny.replaceBlocks === "function" &&
-                          editorAny.document
-                        ) {
-                          // BlockNote.jsの公式APIに従って実装
-                          editorAny.replaceBlocks(
-                            editorAny.document,
-                            editorState.blocks
-                          );
-                          console.log(
-                            "[FileEditor] ✅ ブロック適用ボタン: ブロックを適用しました"
-                          );
-
-                          alert("ブロックを適用しました");
-                        } else {
-                          console.error(
-                            "[FileEditor] ❌ ブロック適用ボタン: replaceBlocksまたはdocumentが見つかりません"
-                          );
-                          alert(
-                            "replaceBlocksメソッドまたはdocumentプロパティが見つかりません"
-                          );
-                        }
-                      } catch (error) {
-                        console.error(
-                          "[FileEditor] ❌ ブロック適用ボタン: エラー発生",
-                          error
-                        );
-                        alert(
-                          "エラー: " +
-                            (error instanceof Error
-                              ? error.message
-                              : String(error))
-                        );
-                      }
-                    } else {
-                      console.warn(
-                        "[FileEditor] ⚠️ ブロック適用ボタン: 条件を満たしていません",
-                        {
-                          hasEditor: !!editor,
-                          hasBlocks: !!editorState.blocks,
-                          blocksLength: editorState.blocks?.length || 0,
-                        }
-                      );
-                      alert("エディタまたはブロックデータがありません");
-                    }
-                  }}
-                  style={{
-                    padding: "2px 5px",
-                    fontSize: "10px",
-                    marginLeft: "5px",
-                  }}
-                >
-                  ブロック適用
-                </button>
-              </div>
-            </div> */}
-
             <BlockNoteView
               editor={editor}
               ref={editorViewRef}
@@ -877,6 +834,18 @@ export function FileEditor({ filePath, initialContent }: FileEditorProps) {
             display: flex;
             flex-direction: column;
             position: relative;
+            overflow: hidden;
+          }
+
+          /* BlockNoteViewのスタイルをグローバルに適用 */
+          :global(.bn-container) {
+            flex: 1;
+            overflow: auto;
+            height: 100%;
+          }
+
+          :global(.bn-editor) {
+            height: 100%;
           }
         `}</style>
       </div>
