@@ -162,6 +162,7 @@ export function ContextMenuLayout({
           animation: menuFadeIn 0.1s ease;
           transform-origin: top left;
           z-index: 1000;
+          background-color: var(--bn-colors-editor-background);
         }
 
         @keyframes menuFadeIn {

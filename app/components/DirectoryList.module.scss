@@ -270,11 +270,11 @@
 
   /* フォルダ内容部分に背景色をつけ、さらに内側の item-content は白背景 */
   .folder-content {
-    background-color: #f6f6f6;
+    background-color: var(--bn-colors-hovered-background);
 
-    .item-content {
-      background-color: #fff;
-    }
+    // .item-content {
+    //   // background-color: var(--bn-colors-hovered-background);
+    // }
   }
 
   /* files-list の item-content (ファイル表示) のボーダー等を調整 */

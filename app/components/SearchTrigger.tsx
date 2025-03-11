@@ -26,12 +26,13 @@ export const SearchTrigger = React.memo(
           .search-trigger {
             padding: 0.5rem 1rem;
             border: solid 1px var(--bn-colors-hovered-background);
-            border-radius: 4px;
+            border-radius: 9999em;
             display: flex;
             align-items: center;
             gap: 0.5rem;
             cursor: pointer;
             transition: all 0.2s ease;
+            height: 3.5em;
           }
           :global(.search-icon) {
             width: 1.2em;

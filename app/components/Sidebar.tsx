@@ -44,23 +44,14 @@ export function Sidebar({
   return (
     <div className="sidebar">
       <div className="sidebar-header">
-        <h2>LocalMark</h2>
-        <button
-          className="new-file-button"
-          onClick={() => window.dispatchEvent(new CustomEvent("newFile"))}
-        >
-          <span>+ New</span>
-        </button>
+        <h2>
+          <Link href="/">LocalMark</Link>
+        </h2>
       </div>
       <SearchTrigger folderPath={currentPath} className="desktop-search" />
-      <Link href="/" className="nav-item">
-        <span className="nav-icon">🏠</span>
-        <span className="nav-text">ホーム</span>
-      </Link>
-      <Link href="/quickmemo" className="nav-item">
-        <span className="nav-icon">📝</span>
-        <span className="nav-text">クイックメモ</span>
-      </Link>
+      <button onClick={() => window.dispatchEvent(new CustomEvent("newFile"))}>
+        <span>+ New</span>
+      </button>
       <FileTreeClient
         tree={tree || []}
         onFileSelect={onFileSelect}

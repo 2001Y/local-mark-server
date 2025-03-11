@@ -1,6 +1,5 @@
 {
-  "name": "Local Mark Server",
-  "short_name": "LocalMark",
+  "name": "Local Mark",
   "description": "ローカルのマークダウンファイルを管理・編集するアプリケーション",
   "start_url": "/",
   "display": "standalone",

@@ -9,6 +9,11 @@ button {
     opacity: 0.5;
   }
 }
+a {
+  &:hover {
+    opacity: 0.5;
+  }
+}
 
 html,
 body {
