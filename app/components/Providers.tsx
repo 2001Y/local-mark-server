@@ -4,7 +4,7 @@ import { Toaster } from "sonner";
 import { MantineProvider, createTheme } from "@mantine/core";
 import { SidebarProvider } from "../context/SidebarContext";
 import { TreeProvider } from "../context/TreeContext";
-import { EditorProvider } from "../context/EditorContext";
+import { EditorProvider } from "@/app/context/EditorContext";
 import { ContextMenuProvider } from "../context/ContextMenuContext";
 import { FileNode } from "../types/file";
 import { useState, Component, ReactNode } from "react";

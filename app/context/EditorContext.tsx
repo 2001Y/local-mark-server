@@ -54,11 +54,6 @@ import { getFileContent, saveFile } from "../actions/server";
 import { createHash } from "crypto";
 import { toast } from "sonner";
 
-// ハッシュ関数の定義
-const hashContent = (content: string): string => {
-  return createHash("sha256").update(content).digest("hex").slice(0, 8);
-};
-
 type DataSource = "server" | "localStorage" | "context";
 
 interface SourceData {
@@ -66,13 +61,6 @@ interface SourceData {
   blocks: BlockNotePackage.Block[] | null;
   error?: string | null;
   path: string;
-}
-
-// エディタの状態を表す型
-interface EditorState {
-  blocks: BlockNotePackage.Block[] | null;
-  source: DataSource | null;
-  priority: number;
 }
 
 // 優先度の定義
@@ -99,6 +87,9 @@ interface EditorContextType {
     isUpdated: boolean;
     source: string | null;
   }>;
+  convertToMarkdown: (
+    blocks: BlockNotePackage.Block[]
+  ) => Promise<string | null>;
 }
 
 const EditorContext = createContext<EditorContextType | null>(null);
@@ -106,6 +97,11 @@ const EditorContext = createContext<EditorContextType | null>(null);
 interface EditorProviderProps {
   children: React.ReactNode;
 }
+
+// ハッシュ関数の定義
+const hashContent = (content: string): string => {
+  return createHash("sha256").update(content).digest("hex").slice(0, 8);
+};
 
 export function EditorProvider({ children }: EditorProviderProps) {
   console.log("[EditorProvider] 🔄 レンダリング");
@@ -417,9 +413,7 @@ export function EditorProvider({ children }: EditorProviderProps) {
             error: result.error,
           });
 
-          if (result.success && editorRef.current) {
-            console.log("[EditorProvider] 📍Server: Markdownパース開始");
-
+          if (result.success) {
             // データが空の場合は空のブロックを返す
             if (!result.data || result.data.trim() === "") {
               console.log(
@@ -440,112 +434,117 @@ export function EditorProvider({ children }: EditorProviderProps) {
                 : result.data
             );
 
-            try {
-              // editorをany型として扱い、型エラーを回避
-              const editorAny = editorRef.current as any;
+            // エディタが初期化されている場合はパースを試みる
+            if (editorRef.current) {
+              try {
+                // editorをany型として扱い、型エラーを回避
+                const editorAny = editorRef.current as any;
 
-              // BlockNote.jsの公式APIを使用: tryParseMarkdownToBlocks
-              if (typeof editorAny.tryParseMarkdownToBlocks === "function") {
-                console.log(
-                  "[EditorProvider] 📍Server: tryParseMarkdownToBlocksを使用します"
-                );
-
-                // Markdownをブロックに変換
-                const blocks = await editorAny.tryParseMarkdownToBlocks(
-                  result.data
-                );
-
-                console.log(
-                  `[EditorContext] 📍Server: ${
-                    blocks?.length || 0
-                  }個のブロック取得 (サーバー取得成功)`
-                );
-                console.log("[EditorProvider] 📍Server: ブロック詳細:", {
-                  count: blocks?.length || 0,
-                  isArray: Array.isArray(blocks),
-                  firstBlock:
-                    blocks?.length > 0
-                      ? JSON.stringify(blocks[0]).substring(0, 100) + "..."
-                      : null,
-                });
-
-                // 取得したデータをキャッシュに保存（非同期で実行）
-                setTimeout(() => {
-                  setCachedBlocksState((prev) => {
-                    const next = new Map(prev);
-                    // nullチェックを追加して型エラーを解消
-                    if (blocks !== null) {
-                      next.set(path, blocks);
-                    }
-                    return next;
-                  });
+                // BlockNote.jsの公式APIを使用: tryParseMarkdownToBlocks
+                if (typeof editorAny.tryParseMarkdownToBlocks === "function") {
                   console.log(
-                    `[EditorContext] 📍Server: 取得したデータをキャッシュに保存`
+                    "[EditorProvider] 📍Server: tryParseMarkdownToBlocksを使用します"
                   );
-                }, 0);
 
-                return { source: "server", blocks, path };
-              } else {
+                  // Markdownをブロックに変換
+                  const blocks = await editorAny.tryParseMarkdownToBlocks(
+                    result.data
+                  );
+
+                  console.log(
+                    `[EditorContext] 📍Server: ${
+                      blocks?.length || 0
+                    }個のブロック取得 (サーバー取得成功)`
+                  );
+
+                  if (blocks && blocks.length > 0) {
+                    // ハッシュの計算
+                    const newContentHash = hashContent(JSON.stringify(blocks));
+
+                    // 取得したデータをContextに保存
+                    setCachedBlocksState((prev) => {
+                      const next = new Map(prev);
+                      next.set(path, blocks);
+                      return next;
+                    });
+
+                    // LocalStorageにも保存
+                    try {
+                      setBlockCache(path, blocks, newContentHash);
+                      setCacheStats(getCacheStats());
+                      console.log(
+                        `[EditorContext] 📍Server: データをLocalStorageに保存しました`
+                      );
+                    } catch (cacheError) {
+                      console.error(
+                        `[EditorContext] ❌ LocalStorageへの保存失敗:`,
+                        cacheError
+                      );
+                    }
+
+                    // ハッシュ値を更新
+                    lastContentHashRef.current = newContentHash;
+
+                    console.log(
+                      `[EditorContext] 📍Server: 取得したデータをキャッシュに保存しました`
+                    );
+
+                    // エディタの状態を更新
+                    editorStateRef.current = {
+                      blocks,
+                      source: "server",
+                      priority: SOURCE_PRIORITY.server,
+                    };
+
+                    return { source: "server", blocks, path };
+                  }
+                } else {
+                  console.error(
+                    "[EditorProvider] 📍Server: tryParseMarkdownToBlocksメソッドが見つかりません"
+                  );
+                }
+              } catch (parseError) {
                 console.error(
-                  "[EditorProvider] 📍Server: tryParseMarkdownToBlocksメソッドが見つかりません"
-                );
-                throw new Error(
-                  "tryParseMarkdownToBlocksメソッドが見つかりません"
+                  "[EditorContext] ❌Server: パース失敗",
+                  parseError
                 );
               }
-            } catch (error) {
-              console.error("[EditorContext] ❌Server: パース失敗", error);
-              return {
-                source: "server",
-                blocks: [],
-                error: error instanceof Error ? error.message : "パースエラー",
-                path,
-              };
             }
-          }
 
-          // editorRefがnullの場合、マークダウンデータを一時保存
-          if (result.success) {
-            // editorRefがnullだが、データは取得できている場合
-            if (!editorRef.current && result.data) {
-              console.log(
-                "[EditorContext] ⚠️Server: editorRefがnullですが、マークダウンデータは取得できています"
-              );
+            // エディタが初期化されていない場合、またはパースに失敗した場合
+            console.log(
+              "[EditorContext] ⚠️Server: editorRefがnullですが、マークダウンデータは取得できています"
+            );
 
-              // マークダウンデータを一時保存
-              pendingMarkdownRef.current.set(path, result.data);
+            // マークダウンデータを一時保存
+            pendingMarkdownRef.current.set(path, result.data);
+            console.log(
+              `[EditorContext] 📍Server: マークダウンデータを一時保存しました: ${path}`
+            );
 
-              console.log(
-                `[EditorContext] 📍Server: マークダウンデータを一時保存しました: ${path}`
-              );
+            // 空ではないブロック配列を返す（エディタ表示のため）
+            // 型エラーを避けるため、空の配列を使用
+            const initialBlocks: BlockNotePackage.Block[] = [];
 
-              // 空のブロックを返す（後でエディタが初期化されたときに処理される）
-              return {
-                source: "server",
-                blocks: [],
-                path,
-              };
-            } else {
-              console.log(
-                "[EditorContext] ⚠️Server: データ取得失敗 - 不明な理由"
-              );
-            }
-          } else {
-            console.log("[EditorContext] ⚠️Server: データ取得失敗 - APIエラー");
+            return {
+              source: "server",
+              blocks: initialBlocks,
+              path,
+            };
           }
 
           return {
             source: "server",
             blocks: null,
-            error: result.error || "データ取得エラー",
+            error: result.error || "サーバーからのデータ取得に失敗しました",
             path,
           };
         } catch (error) {
-          console.error("[EditorContext] ❌Server: 取得失敗", error);
+          console.error("[EditorContext] ❌Server: データ取得エラー", error);
           return {
             source: "server",
             blocks: null,
-            error: error instanceof Error ? error.message : "不明なエラー",
+            error: error instanceof Error ? error.message : "データ取得エラー",
             path,
           };
         }
@@ -554,54 +553,18 @@ export function EditorProvider({ children }: EditorProviderProps) {
     return sources;
   }, [cachedBlocks, editorRef]);
 
-  // データの取得を一元管理する関数
+  // getContent関数を修正して、同時並行でデータを取得するように変更
   const getContent = useCallback(
-    async (
-      path: string
-    ): Promise<{
-      blocks: BlockNotePackage.Block[] | null;
-      source: DataSource | null;
-      isUpdated: boolean;
-    }> => {
+    async (path: string) => {
       console.log(`[EditorProvider] 🔍 getContent called for path: ${path}`);
       console.log(`[EditorProvider] 🔄 getContent dependencies:`, {
-        isProcessing,
+        isProcessing: isProcessing,
         fetchSourcesRef: !!fetchSources,
         shouldApplyDataRef: !!shouldApplyData,
         applyDataRef: !!applyData,
       });
 
-      // 既に処理中の場合はスキップ
-      if (isProcessing) {
-        console.log(`[EditorProvider] ⏳ 処理中のため取得をスキップ: ${path}`);
-        return {
-          blocks: editorStateRef.current.blocks,
-          source: editorStateRef.current.source,
-          isUpdated: false,
-        };
-      }
-
-      // 最後に処理したパスと同じ場合、かつ短時間での再取得の場合はスキップ
-      if (
-        path === lastProcessedPathRef.current &&
-        loadContentCallCountRef.current > 1
-      ) {
-        const timeSinceLastCall =
-          Date.now() - (lastContentFetchTimeRef.current || 0);
-        if (timeSinceLastCall < 5000) {
-          // 5秒以内の再取得はスキップ
-          console.log(
-            `[EditorProvider] ⏭️ 短時間での再取得をスキップ: ${path}, 前回の取得から ${timeSinceLastCall}ms`
-          );
-          return {
-            blocks: editorStateRef.current.blocks,
-            source: editorStateRef.current.source,
-            isUpdated: false,
-          };
-        }
-      }
-
-      // 処理中フラグをrefで管理して状態更新を減らす
+      // 処理中フラグを設定
       isProcessingRef.current = true;
       console.log(
         `[EditorProvider] ⏳ isProcessingRef を true に設定: ${path}`
@@ -615,92 +578,128 @@ export function EditorProvider({ children }: EditorProviderProps) {
 
       lastContentFetchTimeRef.current = Date.now();
       lastProcessedPathRef.current = path;
-      let isUpdated = false;
       let resultBlocks: BlockNotePackage.Block[] | null = null;
       let resultSource: DataSource | null = null;
+      let isUpdated = false;
 
       try {
-        // 優先度順にデータソースを処理
+        // 優先度の定義（高いほど優先）
+        const PRIORITY: Record<DataSource, number> = {
+          server: 3, // サーバーが最優先
+          context: 2, // 次にコンテキスト
+          localStorage: 1, // 最後にローカルストレージ
+        };
+
+        // 同時並行でデータを取得
         const sources: DataSource[] = ["context", "localStorage", "server"];
-        let cacheHit = false;
-
-        for (const source of sources) {
-          try {
-            console.log(
-              `[EditorProvider] 🔍 ${source}からデータを取得中: ${path}`
-            );
-
-            // サーバーからの取得は、キャッシュヒットがあった場合はスキップ
-            if (source === "server" && cacheHit) {
+        const fetchPromises = sources.map((source) => {
+          return new Promise<SourceData | null>(async (resolve) => {
+            try {
               console.log(
-                `[EditorProvider] ⏭️ キャッシュヒットがあるためサーバー取得をスキップ: ${path}`
+                `[EditorProvider] 🔍 ${source}からデータを取得中: ${path}`
               );
-              continue;
-            }
-
-            const data = await fetchSources[source](path);
-
-            if (data.blocks && data.blocks.length > 0) {
-              // データの適用判定
-              const shouldApply = shouldApplyData(data);
-              if (shouldApply) {
-                // データの適用
-                await applyData(data);
-                resultBlocks = data.blocks;
-                resultSource = data.source;
-                isUpdated = true;
+              const data = await fetchSources[source](path);
+              if (data.blocks && data.blocks.length > 0) {
                 console.log(
-                  `[EditorProvider] ✅ ${source}からのデータを適用: ${path}`,
-                  { blocksCount: data.blocks.length }
+                  `[EditorProvider] ✅ ${source}からデータを取得しました: ${path}`,
+                  {
+                    blocksCount: data.blocks.length,
+                    priority: PRIORITY[source],
+                  }
                 );
-
-                // contextまたはlocalStorageからデータが取得できた場合、キャッシュヒットとみなす
-                if (source === "context" || source === "localStorage") {
-                  cacheHit = true;
-                  console.log(
-                    `[EditorProvider] 🎯 キャッシュヒット: ${source}からデータを取得: ${path}`
-                  );
-                }
-
-                break; // 優先度の高いデータが適用されたら終了
+                resolve(data);
               } else {
                 console.log(
-                  `[EditorProvider] ⏭️ ${source}からのデータは適用されませんでした: ${path}`
+                  `[EditorProvider] ⚠️ ${source}からのデータがありません: ${path}`
+                );
+                resolve(null);
+              }
+            } catch (error) {
+              console.error(
+                `[EditorProvider] ❌ ${source}からの取得エラー:`,
+                error
+              );
+              resolve(null);
+            }
+          });
+        });
+
+        // 取得結果を格納する配列
+        const results: (SourceData | null)[] = [];
+
+        // 取得できたデータを順次処理
+        for (const promise of fetchPromises) {
+          const result = await promise;
+          if (result) {
+            results.push(result);
+
+            // まだエディタに反映されていない場合は、取得できたデータを即時反映
+            if (!resultBlocks) {
+              const shouldApply = shouldApplyData(result);
+              if (shouldApply && result.blocks) {
+                await applyData(result);
+                resultBlocks = result.blocks;
+                resultSource = result.source;
+                isUpdated = true;
+                console.log(
+                  `[EditorProvider] 🔄 最初のデータをエディタに反映: ${result.source}`,
+                  {
+                    blocksCount: result.blocks?.length || 0,
+                  }
                 );
               }
-            } else {
-              console.log(
-                `[EditorProvider] ⚠️ ${source}からのデータがありません: ${path}`
-              );
             }
-          } catch (error) {
-            console.error(
-              `[EditorProvider] ❌ ${source}からのデータ取得でエラー:`,
-              error
-            );
           }
         }
+
+        // 優先度順にソート（降順）
+        results.sort((a, b) => {
+          if (!a) return 1;
+          if (!b) return -1;
+          return PRIORITY[b.source] - PRIORITY[a.source];
+        });
+
+        // 最も優先度の高いデータを適用
+        if (results.length > 0 && results[0]) {
+          const highestPriorityData = results[0];
+
+          // 既に適用されたデータと異なる場合のみ上書き
+          if (resultSource !== highestPriorityData.source) {
+            const shouldApply = shouldApplyData(highestPriorityData);
+            if (shouldApply && highestPriorityData.blocks) {
+              await applyData(highestPriorityData);
+              resultBlocks = highestPriorityData.blocks;
+              resultSource = highestPriorityData.source;
+              isUpdated = true;
+              console.log(
+                `[EditorProvider] 🔄 優先度の高いデータで上書き: ${highestPriorityData.source}`,
+                {
+                  blocksCount: highestPriorityData.blocks?.length || 0,
+                  priority: PRIORITY[highestPriorityData.source],
+                }
+              );
+            }
+          }
+        }
+      } catch (error) {
+        console.error(`[EditorProvider] ❌ データ取得中にエラー:`, error);
       } finally {
-        // 処理中フラグをrefで管理して状態更新を減らす
+        // 処理中フラグを解除
         isProcessingRef.current = false;
         console.log(
           `[EditorProvider] ✅ isProcessingRef を false に設定: ${path}`
         );
 
         // UIの更新のためにsetStateも使用（ただし頻度を減らす）
-        // requestAnimationFrameを使用して複数の更新をバッチ処理
         if (isProcessing) {
-          requestAnimationFrame(() => {
-            if (isProcessingRef.current === false) {
-              setIsProcessing(false);
-              console.log(
-                `[EditorProvider] ✅ isProcessing を false に設定: ${path}`
-              );
-            }
-          });
+          setIsProcessing(false);
+          console.log(
+            `[EditorProvider] ✅ isProcessing を false に設定: ${path}`
+          );
         }
       }
 
+      // 結果を返す
       return {
         blocks: resultBlocks || [],
         source: resultSource,
@@ -754,460 +753,85 @@ export function EditorProvider({ children }: EditorProviderProps) {
     [] // 依存配列を空にして安定させる
   );
 
-  // 既存のsetCachedBlocks関数を修正
-  const setCachedBlocks = useCallback(
-    async (path: string, blocks: BlockNotePackage.Block[]) => {
-      console.log(
-        `[EditorProvider] 📝 setCachedBlocks called for path: ${path}`
-      );
-      console.log(
-        `[EditorProvider] 📊 setCachedBlocks blocks count: ${blocks.length}`
-      );
+  // convertToMarkdown関数を追加
+  const convertToMarkdown = useCallback(
+    async (blocks: BlockNotePackage.Block[]): Promise<string | null> => {
+      if (!editorRef.current) {
+        console.warn(
+          "[EditorProvider] エディタがnullのため変換をスキップします"
+        );
+        return null;
+      }
+
+      if (!blocks || blocks.length === 0) {
+        console.warn("[EditorProvider] ブロックが空のため変換をスキップします");
+        return null;
+      }
 
       try {
-        // 1. 現在のデータの優先度を確認
-        const currentSource = editorStateRef.current.source;
-        const currentPriority = editorStateRef.current.priority;
+        // editorをany型として扱い、型エラーを回避
+        const editorAny = editorRef.current as any;
 
-        console.log(`[EditorProvider] 📊 現在のデータ状態:`, {
-          source: currentSource,
-          priority: currentPriority,
-          path,
-        });
+        // 画像ブロックの検出
+        const hasImageBlocks = blocks.some((block) => block.type === "image");
+        console.log("[EditorProvider] 画像ブロックの有無:", hasImageBlocks);
 
-        // 2. ハッシュの計算
-        const newContentHash = hashContent(JSON.stringify(blocks));
-        const currentContentHash = lastContentHashRef.current;
+        // BlockNote.jsの公式APIを使用: blocksToMarkdownLossy
+        if (typeof editorAny.blocksToMarkdownLossy === "function") {
+          let markdown = await editorAny.blocksToMarkdownLossy(blocks);
 
-        console.log(`[EditorProvider] 🔍 ハッシュ比較:`, {
-          currentHash: currentContentHash,
-          newHash: newContentHash,
-          match: newContentHash === currentContentHash,
-        });
+          // 画像ブロックの処理
+          if (hasImageBlocks) {
+            console.log(
+              "[EditorProvider] 画像ブロックを含むMarkdownに変換します"
+            );
 
-        // 3. ハッシュによる差分チェック
-        if (newContentHash === currentContentHash) {
-          console.log(
-            `[EditorProvider] ⏭️ コンテンツに変更がないためスキップ: ${path}`
-          );
-          // 変更がない場合は成功として扱う
-          return true;
-        }
+            // 画像ブロックのMarkdown生成
+            const imageMarkdown = blocks
+              .filter(
+                (block) =>
+                  block.type === "image" &&
+                  block.props &&
+                  (block.props as any).url
+              )
+              .map((block) => `\n![image](${(block.props as any).url})\n\n`)
+              .join("");
 
-        console.log(`[EditorProvider] 🔄 コンテンツの変更を検出:`, {
-          oldHash: currentContentHash,
-          newHash: newContentHash,
-          path,
-        });
-
-        // 4. Contextへの保存
-        setCachedBlocksState((prev) => {
-          const next = new Map(prev);
-          next.set(path, blocks);
-          return next;
-        });
-
-        // 5. LocalStorageへの保存
-        try {
-          setBlockCache(path, blocks, newContentHash);
-          setCacheStats(getCacheStats());
-          console.log(`[EditorProvider] ✅ LocalStorageへの保存成功: ${path}`);
-        } catch (cacheError) {
-          console.error(
-            `[EditorProvider] ❌ LocalStorageへの保存失敗:`,
-            cacheError
-          );
-          // LocalStorageへの保存失敗はエラーとして扱わない（続行する）
-        }
-
-        // 6. サーバーへの保存
-        if (editorRef.current) {
-          try {
-            // 画像ブロックを含むMarkdownへの変換を改善
-            let markdownContent = "";
-
-            try {
-              // 画像ブロックの検出
-              const hasImageBlocks = blocks.some(
-                (block) => block.type === "image"
-              );
-              console.log(
-                `[EditorProvider] 画像ブロックの有無:`,
-                hasImageBlocks
-              );
-
-              // 最新のBlockNote.jsのAPIを使用
-              markdownContent = await editorRef.current.blocksToMarkdownLossy(
-                blocks
-              );
-
-              // 画像ブロックの処理
-              if (hasImageBlocks) {
-                console.log(
-                  `[EditorProvider] 画像ブロックを含むMarkdownに変換します`
-                );
-
-                // 画像ブロックのMarkdown生成
-                const imageMarkdown = blocks
-                  .filter(
-                    (block) =>
-                      block.type === "image" &&
-                      block.props &&
-                      (block.props as any).url
-                  )
-                  .map((block) => `\n![image](${(block.props as any).url})\n\n`)
-                  .join("");
-
-                // 既存のMarkdownに画像Markdownを追加
-                if (imageMarkdown) {
-                  markdownContent += "\n" + imageMarkdown;
-                }
-              }
-
-              // 変換結果をチェック
-              if (
-                !markdownContent ||
-                markdownContent.includes("[object Object]")
-              ) {
-                console.warn(
-                  `[EditorProvider] ⚠️ blocksToMarkdownLossyの結果が不正です。代替手段を試みます。`
-                );
-
-                // 代替手段: 独自の変換ロジックを使用
-                markdownContent = blocks
-                  .map((block) => {
-                    // 画像ブロックの処理
-                    if (
-                      block.type === "image" &&
-                      block.props &&
-                      (block.props as any).url
-                    ) {
-                      return `![image](${(block.props as any).url})\n\n`;
-                    }
-
-                    // その他のブロックはデフォルトの変換を使用
-                    return "";
-                  })
-                  .join("");
-
-                // 独自変換で何も生成されなかった場合は元の変換結果を使用
-                if (!markdownContent.trim()) {
-                  markdownContent =
-                    await editorRef.current.blocksToMarkdownLossy(blocks);
-                }
-              }
-            } catch (conversionError) {
-              console.error(
-                `[EditorProvider] ❌ Markdown変換エラー:`,
-                conversionError
-              );
-              // エラー発生時は代替手段を試みる
-              markdownContent = JSON.stringify(blocks);
+            // 既存のMarkdownに画像Markdownを追加
+            if (imageMarkdown) {
+              markdown += "\n" + imageMarkdown;
             }
-
-            // デバッグ用のログ
-            console.log(`[EditorProvider] 📄 Markdown変換結果:`, {
-              type: typeof markdownContent,
-              length: markdownContent?.length,
-              preview: markdownContent?.substring(0, 50),
-              path,
-            });
-
-            if (markdownContent) {
-              if (markdownContent.includes("[object Object]")) {
-                console.error(
-                  `[EditorProvider] ⚠️ 不正なMarkdown変換結果: [object Object]が含まれています`
-                );
-                return false;
-              }
-
-              console.log(`[EditorProvider] 📤 サーバーへの保存開始: ${path}`);
-              // 追加デバッグログ - パスの詳細情報
-              console.log(`[EditorProvider] 🔍 保存パスの詳細:`, {
-                originalPath: path,
-                isAbsolute: typeof path === "string" && path.startsWith("/"),
-                pathComponents: typeof path === "string" ? path.split("/") : [],
-                containsJapanese:
-                  typeof path === "string" &&
-                  /[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff00-\uff9f\u4e00-\u9faf\u3400-\u4dbf]/.test(
-                    path
-                  ),
-                envDefaultPath: process.env.NEXT_PUBLIC_DEFAULT_MD_PATH,
-              });
-
-              try {
-                const result = await saveFile(path, markdownContent);
-                // 追加デバッグログ - 保存結果の詳細
-                console.log(`[EditorProvider] 📊 保存結果の詳細:`, {
-                  success: result.success,
-                  error: result.error,
-                  path: path,
-                });
-
-                if (result.success) {
-                  console.log(
-                    `[EditorProvider] ✅ サーバーへの保存成功: ${path}`
-                  );
-
-                  // 7. 状態の更新
-                  lastContentHashRef.current = newContentHash;
-                  editorStateRef.current = {
-                    blocks,
-                    source: "context", // 編集後は常にcontextが最新
-                    priority: SOURCE_PRIORITY.context,
-                  };
-
-                  return true;
-                } else {
-                  console.error(
-                    `[EditorProvider] ❌ サーバーへの保存失敗:`,
-                    result.error
-                  );
-                  console.error(`[EditorProvider] 🔍 保存失敗の詳細:`, {
-                    path,
-                    contentLength: markdownContent.length,
-                    error: result.error,
-                  });
-                  return false;
-                }
-              } catch (saveError) {
-                console.error(
-                  `[EditorProvider] ❌ サーバー保存中に例外が発生:`,
-                  saveError
-                );
-                console.error(`[EditorProvider] 🔍 例外の詳細:`, {
-                  path,
-                  errorType:
-                    saveError instanceof Error ? "Error" : typeof saveError,
-                  errorMessage:
-                    saveError instanceof Error
-                      ? saveError.message
-                      : String(saveError),
-                });
-                return false;
-              }
-            } else {
-              console.error(
-                `[EditorProvider] ❌ Markdownへの変換結果がnullです`
-              );
-              return false;
-            }
-          } catch (error) {
-            console.error(`[EditorProvider] ❌ Markdown変換でエラー:`, error);
-            return false;
           }
+
+          console.log("[EditorProvider] blocksToMarkdownLossyで変換しました");
+          return markdown;
         } else {
-          console.error(`[EditorProvider] ❌ エディタがnullです`);
-          return false;
+          console.error(
+            "[EditorProvider] blocksToMarkdownLossyメソッドが見つかりません"
+          );
+          return null;
         }
       } catch (error) {
-        console.error(`[EditorProvider] ❌ キャッシュ保存でエラー:`, error);
-        return false;
-      }
-    },
-    [editorRef, editorStateRef, setCachedBlocksState, setCacheStats]
-  );
-
-  // 既存のclearCachedBlocks関数を修正
-  const clearCachedBlocks = useCallback(
-    (path: string) => {
-      console.log(
-        `[EditorProvider] 📝 clearCachedBlocks called for path: ${path}`
-      );
-      setCachedBlocksState((prev) => {
-        const next = new Map(prev);
-        next.delete(path);
-        return next;
-      });
-    },
-    [setCachedBlocksState]
-  );
-
-  // ファイルアップロード処理
-  const uploadFile = async (file: File): Promise<string> => {
-    try {
-      console.log("[EditorProvider] 📤 画像アップロード開始:", file.name);
-
-      // 現在編集中のファイルパスを取得
-      const currentPath = lastProcessedPathRef.current;
-      if (!currentPath) {
-        console.error("[EditorProvider] ❌ 現在のファイルパスが不明です");
-        throw new Error("現在のファイルパスが不明です");
-      }
-
-      // FormDataの作成
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("currentPath", currentPath);
-
-      // 画像アップロードリクエスト
-      const response = await fetch("/api/upload-image", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("[EditorProvider] ❌ 画像アップロード失敗:", errorData);
-        throw new Error(errorData.error || "画像のアップロードに失敗しました");
-      }
-
-      const result = await response.json();
-      console.log("[EditorProvider] 📊 アップロード結果:", result);
-
-      // ファイルが既に存在する場合の処理
-      if (result.duplicate || result.exists) {
-        console.log(
-          "[EditorProvider] ⚠️ ファイルが既に存在します:",
-          result.message
-        );
-
-        // 明示的に確認ダイアログを表示
-        const message =
-          result.message || "ファイルが既に存在します。上書きしますか？";
-        const confirmOverwrite = window.confirm(message);
-        console.log("[EditorProvider] 🔄 上書き確認結果:", confirmOverwrite);
-
-        if (confirmOverwrite) {
-          console.log("[EditorProvider] 🔄 ファイルを上書きします");
-
-          // 上書き用のFormDataを作成
-          const overwriteFormData = new FormData();
-          overwriteFormData.append("file", file);
-          overwriteFormData.append("currentPath", currentPath);
-          overwriteFormData.append("overwrite", "true");
-
-          // 上書きリクエスト
-          const overwriteResponse = await fetch("/api/upload-image", {
-            method: "POST",
-            body: overwriteFormData,
-          });
-
-          if (!overwriteResponse.ok) {
-            const errorData = await overwriteResponse.json();
-            console.error("[EditorProvider] ❌ 画像上書き失敗:", errorData);
-            throw new Error(errorData.error || "画像の上書きに失敗しました");
-          }
-
-          const overwriteResult = await overwriteResponse.json();
-          console.log("[EditorProvider] ✅ 画像上書き成功:", overwriteResult);
-
-          // 画像ブロックを挿入
-          await insertImageBlock(overwriteResult.url);
-          return overwriteResult.url;
-        } else {
-          console.log(
-            "[EditorProvider] ⏭️ ファイルの上書きをキャンセルしました"
-          );
-          // 既存のURLを返す
-          // 画像ブロックを挿入
-          await insertImageBlock(result.url);
-          return result.url;
-        }
-      }
-
-      console.log("[EditorProvider] ✅ 画像アップロード成功:", result);
-
-      // 画像ブロックを挿入
-      await insertImageBlock(result.url);
-      return result.url;
-    } catch (error) {
-      console.error("[EditorProvider] ❌ 画像アップロードエラー:", error);
-      toast.error("画像のアップロードに失敗しました");
-      throw error;
-    }
-  };
-
-  // 画像ブロックを挿入する関数
-  const insertImageBlock = async (url: string) => {
-    if (!editorRef.current) {
-      console.error("[EditorProvider] ❌ エディタが初期化されていません");
-      return;
-    }
-
-    try {
-      console.log("[EditorProvider] 🖼️ 画像ブロックを挿入します:", url);
-
-      // 画像ブロックを作成
-      const imageBlock = {
-        type: "image",
-        props: { url } as any,
-      };
-
-      // エディタに画像ブロックを挿入
-      const editorAny = editorRef.current as any;
-
-      // 方法1: replaceBlocks APIを使用（より安全）
-      if (typeof editorAny.replaceBlocks === "function" && editorAny.document) {
-        // 現在のドキュメントを取得し、画像ブロックを追加
-        const currentBlocks = Array.isArray(editorAny.document)
-          ? [...editorAny.document]
-          : [];
-
-        // 新しいブロック配列を作成
-        const newBlocks = [...currentBlocks, imageBlock];
-
-        // ドキュメント全体を置き換え
-        editorAny.replaceBlocks(editorAny.document, newBlocks);
-        console.log(
-          "[EditorProvider] ✅ replaceBlocksで画像ブロックを挿入しました"
-        );
-      }
-      // 方法2: insertBlocks APIを使用（参照ブロックが必要）
-      else if (
-        typeof editorAny.insertBlocks === "function" &&
-        Array.isArray(editorAny.document) &&
-        editorAny.document.length > 0
-      ) {
-        // 最後のブロックの後に挿入
-        const lastBlock = editorAny.document[editorAny.document.length - 1];
-        editorAny.insertBlocks([imageBlock], lastBlock, "after");
-        console.log(
-          "[EditorProvider] ✅ insertBlocksで画像ブロックを挿入しました（最後のブロックの後）"
-        );
-      }
-      // 方法3: 空のドキュメントの場合
-      else if (typeof editorAny.insertBlocks === "function") {
-        // 新しいパラグラフブロックを作成して挿入
-        const paragraphBlock = { type: "paragraph", content: "" };
-        editorAny.replaceBlocks([], [paragraphBlock]);
-
-        // パラグラフブロックの後に画像ブロックを挿入
-        setTimeout(() => {
-          if (
-            Array.isArray(editorAny.document) &&
-            editorAny.document.length > 0
-          ) {
-            const firstBlock = editorAny.document[0];
-            editorAny.insertBlocks([imageBlock], firstBlock, "after");
-            console.log(
-              "[EditorProvider] ✅ 空のドキュメントに画像ブロックを挿入しました"
-            );
-          }
-        }, 100);
-      } else {
         console.error(
-          "[EditorProvider] ❌ 画像ブロックを挿入するAPIが見つかりません"
+          "[EditorProvider] Error converting blocks to markdown:",
+          error
         );
-        console.log(
-          "[EditorProvider] 📊 エディタのプロパティ:",
-          Object.keys(editorAny)
-        );
+        return null;
       }
-    } catch (error) {
-      console.error("[EditorProvider] ❌ 画像ブロック挿入エラー:", error);
-    }
-  };
+    },
+    []
+  );
 
   // エディタの初期化処理
-  const editor = useMemo(() => {
+  const initEditor = useMemo(() => {
     // サーバーサイドでは実行しない
     if (typeof window === "undefined") return null;
 
     try {
+      console.log("[EditorProvider] エディタの初期化を開始します");
+
       // 型エラーを回避するため、完全にany型として扱う
       const createEditorOptions: any = {
-        uploadFile,
         // 空の初期コンテンツ（最小限のパラグラフ）
         initialContent: [{ type: "paragraph" }],
       };
@@ -1235,7 +859,7 @@ export function EditorProvider({ children }: EditorProviderProps) {
 
   // エディタが初期化された後に保留中のマークダウンデータを処理
   useEffect(() => {
-    if (!editor || pendingMarkdownRef.current.size === 0) return;
+    if (!initEditor || pendingMarkdownRef.current.size === 0) return;
 
     console.log(
       `[EditorProvider] 保留中のマークダウンデータが${pendingMarkdownRef.current.size}件あります`
@@ -1252,8 +876,8 @@ export function EditorProvider({ children }: EditorProviderProps) {
           );
 
           // エディタインスタンスを使用してマークダウンをパース
-          if (typeof editor.tryParseMarkdownToBlocks === "function") {
-            const blocks = await (editor as any).tryParseMarkdownToBlocks(
+          if (typeof initEditor.tryParseMarkdownToBlocks === "function") {
+            const blocks = await (initEditor as any).tryParseMarkdownToBlocks(
               markdown
             );
 
@@ -1261,14 +885,45 @@ export function EditorProvider({ children }: EditorProviderProps) {
               `[EditorProvider] パース成功: ${blocks.length}個のブロック`
             );
 
-            // キャッシュに保存
-            setCachedBlocksState((prev) => {
-              const next = new Map(prev);
-              if (blocks !== null) {
+            if (blocks && blocks.length > 0) {
+              // ハッシュの計算
+              const newContentHash = hashContent(JSON.stringify(blocks));
+
+              // キャッシュに保存
+              setCachedBlocksState((prev) => {
+                const next = new Map(prev);
                 next.set(path, blocks);
+                return next;
+              });
+
+              // LocalStorageにも保存
+              try {
+                setBlockCache(path, blocks, newContentHash);
+                setCacheStats(getCacheStats());
+                console.log(
+                  `[EditorProvider] LocalStorageにデータを保存しました: ${path}`
+                );
+              } catch (cacheError) {
+                console.error(
+                  `[EditorProvider] ❌ LocalStorageへの保存失敗:`,
+                  cacheError
+                );
               }
-              return next;
-            });
+
+              // ハッシュ値を更新
+              lastContentHashRef.current = newContentHash;
+
+              // エディタの状態を更新
+              editorStateRef.current = {
+                blocks,
+                source: "server",
+                priority: SOURCE_PRIORITY.server,
+              };
+
+              console.log(
+                `[EditorProvider] 保留中のデータの処理が完了しました: ${path}`
+              );
+            }
 
             // 処理済みのデータを削除
             pendingMarkdownRef.current.delete(path);
@@ -1281,10 +936,159 @@ export function EditorProvider({ children }: EditorProviderProps) {
         }
       }
     }, 0);
-  }, [editor]);
+  }, [initEditor]);
+
+  // setCachedBlocks関数を追加
+  const setCachedBlocks = useCallback(
+    async (
+      path: string,
+      blocks: BlockNotePackage.Block[]
+    ): Promise<boolean> => {
+      console.log(
+        `[EditorProvider] 📝 setCachedBlocks called for path: ${path}`
+      );
+
+      try {
+        // ブロックが空の場合は、エディタから現在のブロックを取得
+        if (!blocks || blocks.length === 0) {
+          if (!editorRef.current) {
+            console.warn(
+              "[EditorProvider] エディタがnullのため処理をスキップします"
+            );
+            return false;
+          }
+
+          // エディタからブロックを取得
+          const editorAny = editorRef.current as any;
+          let currentBlocks: BlockNotePackage.Block[] = [];
+
+          // 複数の方法でブロックの取得を試みる
+          if (editorAny.document) {
+            // 方法1: document配列を直接使用
+            if (Array.isArray(editorAny.document)) {
+              currentBlocks = editorAny.document;
+            }
+            // 方法2: document.getTopLevelBlocks()を使用
+            else if (
+              typeof editorAny.document.getTopLevelBlocks === "function"
+            ) {
+              currentBlocks = editorAny.document.getTopLevelBlocks();
+            }
+            // 方法3: document.getBlocks()を使用
+            else if (typeof editorAny.document.getBlocks === "function") {
+              currentBlocks = editorAny.document.getBlocks();
+            }
+            // 方法4: document.blocksを使用
+            else if (editorAny.document.blocks) {
+              currentBlocks = editorAny.document.blocks;
+            }
+          }
+          // 方法5: getContent()メソッドを使用
+          else if (typeof editorAny.getContent === "function") {
+            currentBlocks = editorAny.getContent();
+          }
+
+          if (currentBlocks.length === 0) {
+            console.warn("[EditorProvider] ブロックが取得できませんでした");
+            return false;
+          }
+
+          blocks = currentBlocks;
+        }
+
+        console.log(
+          `[EditorProvider] 📊 setCachedBlocks blocks count: ${blocks.length}`
+        );
+
+        // ハッシュの計算
+        const newContentHash = hashContent(JSON.stringify(blocks));
+        const currentContentHash = lastContentHashRef.current;
+
+        // ハッシュによる差分チェック
+        if (newContentHash === currentContentHash) {
+          console.log(
+            `[EditorProvider] ⏭️ コンテンツに変更がないためスキップ: ${path}`
+          );
+          // 変更がない場合は成功として扱う
+          return true;
+        }
+
+        // Contextへの保存
+        setCachedBlocksState((prev) => {
+          const next = new Map(prev);
+          next.set(path, blocks);
+          return next;
+        });
+
+        // LocalStorageへの保存
+        try {
+          setBlockCache(path, blocks, newContentHash);
+          setCacheStats(getCacheStats());
+        } catch (cacheError) {
+          console.error(
+            `[EditorProvider] ❌ LocalStorageへの保存失敗:`,
+            cacheError
+          );
+          // LocalStorageへの保存失敗はエラーとして扱わない（続行する）
+        }
+
+        // サーバーへの保存
+        if (editorRef.current) {
+          try {
+            // Markdownに変換
+            const markdown = await convertToMarkdown(blocks);
+
+            if (markdown) {
+              // サーバーに保存
+              const result = await saveFile(path, markdown);
+
+              if (result.success) {
+                // 状態の更新
+                lastContentHashRef.current = newContentHash;
+                return true;
+              } else {
+                console.error(
+                  `[EditorProvider] ❌ サーバーへの保存失敗:`,
+                  result.error
+                );
+                return false;
+              }
+            } else {
+              console.error(
+                `[EditorProvider] ❌ Markdownへの変換結果がnullです`
+              );
+              return false;
+            }
+          } catch (error) {
+            console.error(`[EditorProvider] ❌ Markdown変換でエラー:`, error);
+            return false;
+          }
+        } else {
+          console.error(`[EditorProvider] ❌ エディタがnullです`);
+          return false;
+        }
+      } catch (error) {
+        console.error(`[EditorProvider] ❌ キャッシュ保存でエラー:`, error);
+        return false;
+      }
+    },
+    [convertToMarkdown]
+  );
+
+  // clearCachedBlocks関数を追加
+  const clearCachedBlocks = useCallback((path: string) => {
+    console.log(
+      `[EditorProvider] 📝 clearCachedBlocks called for path: ${path}`
+    );
+    setCachedBlocksState((prev) => {
+      const next = new Map(prev);
+      next.delete(path);
+      return next;
+    });
+  }, []);
 
   const contextValue: EditorContextType = {
-    editor: editorRef.current,
+    editor: initEditor,
     cachedBlocks,
     setCachedBlocks,
     clearCachedBlocks,
@@ -1293,6 +1097,7 @@ export function EditorProvider({ children }: EditorProviderProps) {
     isProcessing,
     cacheStats,
     loadContent,
+    convertToMarkdown,
   };
 
   return (
