@@ -192,11 +192,9 @@ export function ClientPage({ initialTree, updateTree }: ClientPageProps) {
         .quickmemo-page h1 {
           margin: 0;
           font-size: 1.8rem;
-          color: #333;
         }
 
         .description {
-          color: #666;
           margin: 0;
         }
       `}</style>

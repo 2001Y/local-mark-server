@@ -9,28 +9,6 @@ export function QuickmemoInfo() {
       <p className="description">
         ブラウザ上に一時的にMarkdownメモができます。⌘+Sで保存すると新規ファイルとしてサーバーに保存できます。
       </p>
-
-      <style jsx>{`
-         {
-          /* .quickmemo {
-          padding: 1.5rem;
-          background-color: #f8f9fa;
-          border-radius: 8px;
-          border: 1px solid #eaeaea;
-        }
-
-        h2 {
-          margin: 0 0 1rem;
-          font-size: 1.5rem;
-          color: #333;
-        } */
-        }
-
-        .description {
-          color: #666;
-          margin: 0;
-        }
-      `}</style>
     </div>
   );
 }

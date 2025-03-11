@@ -1,23 +1,11 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
 import "@mantine/core/styles.css";
+import "./globals.scss";
 import { Providers } from "./components/Providers";
-import { SidebarWrapper } from "./components/SidebarWrapper";
 import { FileTreeServer } from "./components/FileTreeServer";
 import styles from "./layout.module.css";
 import { ContextMenuLayout } from "./components/ContextMenuLayout";
 import { ensureDefaultDirectory } from "./lib/fileSystem";
-
-const geistSans = Geist({
-  subsets: ["latin"],
-  variable: "--font-geist-sans",
-});
-
-const geistMono = Geist_Mono({
-  subsets: ["latin"],
-  variable: "--font-geist-mono",
-});
 
 export const metadata: Metadata = {
   title: "Local Mark Server",
@@ -105,9 +93,7 @@ export default async function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="LocalMark" />
       </head>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} ${styles.body}`}
-      >
+      <body className={`${styles.body}`}>
         <Providers initialTree={initialTree} updateTree={updateTree}>
           <div className={styles.container}>
             {sidebar}

@@ -127,11 +127,11 @@ export function Header({ source = "unknown" }: HeaderProps) {
               top: 0;
               left: 0;
               right: 0;
-              background: white;
-              border-bottom: 1px solid #eaeaea;
+              border-bottom: solid 1px var(--bn-colors-hovered-background);
               padding: 0.75rem 1rem;
-              z-index: 200;
+              z-index: 999999999;
               width: 100%;
+              background-color: var(--bn-colors-editor-background);
             }
 
             .header-content {
@@ -151,14 +151,12 @@ export function Header({ source = "unknown" }: HeaderProps) {
               padding: 0.5rem;
               border-radius: 4px;
               cursor: pointer;
-              color: #666;
               transition: all 0.2s;
               flex-shrink: 0;
             }
 
             .back-button:hover {
               background: #f5f5f5;
-              color: #333;
             }
           `}</style>
         </div>

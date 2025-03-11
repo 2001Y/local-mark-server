@@ -134,7 +134,6 @@ export function Breadcrumb({
           align-items: center;
           flex-wrap: nowrap;
           font-size: 0.9rem;
-          color: #333;
           white-space: nowrap;
           gap: 0.25rem;
         }

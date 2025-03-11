@@ -28,11 +28,10 @@
 import { useCallback, useEffect, useState, useRef, Component } from "react";
 import * as BlockNotePackage from "@blocknote/core";
 import { BlockNoteView } from "@blocknote/mantine";
-import { MantineProvider, createTheme } from "@mantine/core";
+import { MantineProvider } from "@mantine/core";
 import { toast } from "sonner";
 import { useEditor } from "@/app/context/EditorContext";
 import { debounce } from "lodash";
-import { DragDropHandler } from "@/app/components/DragDropHandler";
 
 // 型の別名を定義
 type Block = BlockNotePackage.Block;
@@ -83,14 +82,8 @@ export function FileEditor({ filePath, initialContent }: FileEditorProps) {
   };
 
   const [editorState, setEditorState] = useState<EditorState>(initialState);
-  const {
-    loadContent,
-    editor,
-    setCachedBlocks,
-    editorViewRef,
-    cachedBlocks,
-    convertToMarkdown,
-  } = useEditor();
+  const { loadContent, editor, setCachedBlocks, convertToMarkdown } =
+    useEditor();
   const isMounted = useRef(true);
   const lastLoadTimeRef = useRef<number>(0);
   const prevFilePathRef = useRef<string>(filePath);
@@ -459,71 +452,6 @@ export function FileEditor({ filePath, initialContent }: FileEditorProps) {
     }
   }, [editorState.blocks, convertToMarkdown]);
 
-  // // エディタが空の場合の処理
-  // useEffect(() => {
-  //   if (editor && editorViewRef.current && editorState.blocks.length === 0) {
-  //     // エディタが空の場合、一定時間後にサーバーからの再取得を試みる
-  //     const timer = setTimeout(() => {
-  //       if (!editor || !editorViewRef.current) return;
-
-  //     //   // エディタが空かどうかを確認
-  //     //   const editorAny = editor as any;
-  //     //   const isEmpty =
-  //     //     !editorAny.document ||
-  //     //     (typeof editorAny.document.isEmpty === "function" &&
-  //     //       editorAny.document.isEmpty());
-
-  //     //   if (isEmpty) {
-  //     //     console.log(
-  //     //       "[FileEditor] 🔄 ブロックが空のため、サーバーから再取得を試みます"
-  //     //     );
-
-  //     //     const fetchData = async () => {
-  //     //       try {
-  //     //         const { blocks, isUpdated, source } = await loadContent(filePath);
-
-  //     //         if (blocks && blocks.length > 0) {
-  //     //           console.log(
-  //     //             "[FileEditor] ✅ サーバーからのデータ取得に成功しました",
-  //     //             {
-  //     //               blocksCount: blocks.length,
-  //     //               source,
-  //     //             }
-  //     //           );
-
-  //     //           const editorAny = editor as any;
-  //     //           if (
-  //     //             typeof editorAny.replaceBlocks === "function" &&
-  //     //             editorAny.document
-  //     //           ) {
-  //     //             editorAny.replaceBlocks(editorAny.document, blocks);
-  //     //             console.log(
-  //     //               "[FileEditor] ✅ サーバーから取得したブロックを適用しました"
-  //     //             );
-  //     //           }
-  //     //         }
-  //     //       } catch (error) {
-  //     //         console.error(
-  //     //           "[FileEditor] ❌ サーバーからのデータ取得に失敗:",
-  //     //           error
-  //     //         );
-  //     //       }
-  //     //     };
-
-  //     //     fetchData();
-  //     //   }
-  //     // }, 1000); // 1秒待機
-
-  //     return () => clearTimeout(timer);
-  //   }
-  // }, [
-  //   editor,
-  //   editorViewRef.current,
-  //   editorState.blocks,
-  //   filePath,
-  //   loadContent,
-  // ]);
-
   if (!editor) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -550,11 +478,11 @@ export function FileEditor({ filePath, initialContent }: FileEditorProps) {
           ref={editorContainerRef}
           className="flex-grow overflow-auto relative"
         >
-          <DragDropHandler>
-            <MantineProvider>
-              <BlockNoteView editor={editor} />
-            </MantineProvider>
-          </DragDropHandler>
+          {/* <DragDropHandler> */}
+          <MantineProvider>
+            <BlockNoteView editor={editor} />
+          </MantineProvider>
+          {/* </DragDropHandler> */}
         </div>
       </ErrorBoundary>
     </div>

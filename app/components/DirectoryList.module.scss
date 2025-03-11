@@ -19,7 +19,6 @@
   h2 {
     margin: 0;
     font-size: 0.8rem;
-    color: #cecece;
   }
 }
 
@@ -60,7 +59,6 @@
 .toggle-icon-content {
   font-size: 0.8rem;
   line-height: 1;
-  color: #999;
   transition: color 0.2s ease;
   font-family: system-ui;
 }
@@ -80,17 +78,13 @@
   border-radius: 6px;
   background: transparent;
   transition: background-color 0.2s ease;
-  border: 1px solid #eaeaea;
+  border: solid 1px var(--bn-colors-hovered-background);
   position: relative;
   user-select: none;
   overflow: hidden;
 
   &:hover {
     background-color: #f5f5f5;
-
-    .toggle-icon-content {
-      color: #333;
-    }
   }
 
   /* layout-scroll */
@@ -127,7 +121,6 @@
 .item-icon-content {
   font-size: 1.1rem;
   line-height: 1;
-  color: #666;
 }
 
 .item-details {
@@ -147,7 +140,6 @@
 
 .item-date {
   font-size: 0.8rem;
-  color: #666;
 }
 
 /* --------------------------------------------------
@@ -183,12 +175,12 @@
     gap: 0.75rem;
 
     > details {
-      border: 1px solid #eaeaea;
+      border: solid 1px var(--bn-colors-hovered-background);
       border-radius: 6px;
       margin-bottom: 0.75rem;
 
       summary {
-        border-bottom: 1px solid #eaeaea;
+        border-bottom: solid 1px var(--bn-colors-hovered-background);
       }
     }
   }
@@ -198,7 +190,6 @@
 .folder-item {
   .folder-link {
     text-decoration: none;
-    color: inherit;
   }
 }
 
@@ -267,7 +258,7 @@
   .section-content
 -------------------------------------------------- */
 .section-content.list {
-  border: 1px solid #eaeaea;
+  border: solid 1px var(--bn-colors-hovered-background);
   border-radius: 6px;
 
   /* collapse-close や grid 時に間隔を詰めるなどの調整を元の通り適用 */

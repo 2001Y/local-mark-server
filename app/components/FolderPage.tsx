@@ -285,7 +285,6 @@ export function FolderPage({
           display: flex;
           align-items: center;
           gap: 0.5rem;
-          color: #333;
         }
 
         .user-greeting {
@@ -298,37 +297,32 @@ export function FolderPage({
 
         .folder-path {
           margin: 0.5rem 0 0;
-          color: #666;
           font-size: 0.9rem;
         }
 
         h2 {
           margin: 0 0 1rem;
           font-size: 1.5rem;
-          color: #333;
         }
 
         .loading {
           text-align: center;
           padding: 1rem;
-          color: #666;
           background: #f5f5f5;
           border-radius: 4px;
         }
 
         .mobile-file-tree {
-          border: 1px solid #eaeaea;
+          border: solid 1px var(--bn-colors-hovered-background);
           border-radius: 8px;
           padding: 1rem;
-          background: white;
         }
 
         .mobile-file-tree h2 {
           margin: 0 0 1rem;
           font-size: 1.2rem;
-          color: #333;
           padding-bottom: 0.5rem;
-          border-bottom: 1px solid #eaeaea;
+          border-bottom: solid 1px var(--bn-colors-hovered-background);
         }
 
         :global(.mobile-search) {

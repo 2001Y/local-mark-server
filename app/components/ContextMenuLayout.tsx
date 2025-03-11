@@ -154,10 +154,9 @@ export function ContextMenuLayout({
 
         .context-menu {
           position: fixed;
-          background: white;
           border-radius: 4px;
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-          border: 1px solid #eaeaea;
+          border: solid 1px var(--bn-colors-hovered-background);
           min-width: 150px;
           overflow: hidden;
           animation: menuFadeIn 0.1s ease;
@@ -188,23 +187,14 @@ export function ContextMenuLayout({
           text-align: left;
           cursor: pointer;
           transition: background-color 0.2s;
-          color: #333;
           font-size: 0.9rem;
           display: flex;
           align-items: center;
           gap: 0.5rem;
         }
 
-        button:hover {
-          background-color: #f5f5f5;
-        }
-
         button.danger {
           color: #dc2626;
-        }
-
-        button.danger:hover {
-          background-color: #fee2e2;
         }
       `}</style>
     </div>

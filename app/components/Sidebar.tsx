@@ -71,8 +71,7 @@ export function Sidebar({
         .sidebar {
           width: 300px;
           height: 100vh;
-          border-right: 1px solid #eaeaea;
-          background: white;
+          border-right: solid 1px var(--bn-colors-hovered-background);
           padding: 1rem;
           display: flex;
           flex-direction: column;
@@ -82,7 +81,7 @@ export function Sidebar({
 
         .sidebar-header {
           padding-bottom: 1rem;
-          border-bottom: 1px solid #eaeaea;
+          border-bottom: solid 1px var(--bn-colors-hovered-background);
           margin-bottom: 1rem;
           display: flex;
           justify-content: space-between;
@@ -92,26 +91,19 @@ export function Sidebar({
         .sidebar-header h2 {
           margin: 0;
           font-size: 1.2rem;
-          color: #333;
         }
 
         .new-file-button {
           font-size: 0.8rem;
           background: none;
-          border: 1px solid #eaeaea;
+          border: solid 1px var(--bn-colors-hovered-background);
           border-radius: 4px;
           padding: 0.3em 0.5em;
           display: flex;
           align-items: center;
           justify-content: center;
           cursor: pointer;
-          color: #666;
           transition: all 0.2s;
-        }
-
-        .new-file-button:hover {
-          background: #f5f5f5;
-          color: #333;
         }
 
         :global(.nav-item) {
@@ -121,15 +113,9 @@ export function Sidebar({
           display: flex;
           align-items: center;
           gap: 0.5rem;
-          color: #666;
           border-radius: 4px;
           text-decoration: none;
           transition: all 0.2s ease;
-        }
-
-        :global(.nav-item:hover) {
-          background-color: #f5f5f5;
-          color: #333;
         }
 
         :global(.nav-item.active) {
@@ -146,7 +132,7 @@ export function Sidebar({
         }
 
         .sidebar-tree {
-          border-top: 1px solid #eaeaea;
+          border-top: solid 1px var(--bn-colors-hovered-background);
           margin-top: 1rem;
           padding-top: 1rem;
           flex: 1;

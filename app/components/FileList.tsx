@@ -74,8 +74,7 @@ export function FileList({
           flex-direction: column;
           gap: 0.5rem;
           padding: 1rem;
-          background: white;
-          border: 1px solid #eaeaea;
+          border: solid 1px var(--bn-colors-hovered-background);
           border-radius: 8px;
           cursor: pointer;
           transition: all 0.2s ease;
@@ -92,19 +91,16 @@ export function FileList({
 
         .file-name {
           font-weight: 500;
-          color: #333;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
         }
 
         .file-date {
-          color: #666;
           font-size: 0.9rem;
         }
 
         .no-files {
-          color: #666;
           font-style: italic;
           padding: 1rem;
           text-align: center;

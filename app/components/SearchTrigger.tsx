@@ -25,14 +25,13 @@ export const SearchTrigger = React.memo(
         <style jsx>{`
           .search-trigger {
             padding: 0.5rem 1rem;
-            border: 1px solid #eaeaea;
+            border: solid 1px var(--bn-colors-hovered-background);
             border-radius: 4px;
             display: flex;
             align-items: center;
             gap: 0.5rem;
             cursor: pointer;
             transition: all 0.2s ease;
-            color: #666;
           }
           .search-trigger:hover {
             background: #f5f5f5;

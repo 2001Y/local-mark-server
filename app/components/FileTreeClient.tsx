@@ -156,7 +156,6 @@ export function FileTreeClient({
       <style jsx>{`
         .empty-tree {
           padding: 1rem;
-          color: #666;
           font-style: italic;
           text-align: center;
         }

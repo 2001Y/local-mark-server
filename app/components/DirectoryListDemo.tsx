@@ -423,7 +423,6 @@ export function DirectoryListDemo({
 
         .layout-group {
           padding: 1rem;
-          background: white;
           border-radius: 6px;
           box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
@@ -431,7 +430,6 @@ export function DirectoryListDemo({
         .layout-group h3 {
           margin: 0 0 1rem;
           font-size: 1.2rem;
-          color: #555;
           border-bottom: 2px solid #eee;
           padding-bottom: 0.5rem;
         }
