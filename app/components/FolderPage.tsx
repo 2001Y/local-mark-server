@@ -351,7 +351,6 @@ export function FolderPage({
         .quickmemo-button:hover {
           background: #0052a3;
           transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         }
 
         @media (max-width: 768px) {

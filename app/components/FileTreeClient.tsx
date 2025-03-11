@@ -94,9 +94,6 @@ function TreeNode({ node, level = 0, onFileSelect }: TreeNodeProps) {
           margin: 2px 0;
           position: relative;
         }
-        .node-content:hover {
-          background-color: #f5f5f5;
-        }
         .node-content.active {
           background-color: #e5f1ff;
           color: #0066cc;

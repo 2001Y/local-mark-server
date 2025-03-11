@@ -154,10 +154,6 @@ export function Header({ source = "unknown" }: HeaderProps) {
               transition: all 0.2s;
               flex-shrink: 0;
             }
-
-            .back-button:hover {
-              background: #f5f5f5;
-            }
           `}</style>
         </div>
       )}

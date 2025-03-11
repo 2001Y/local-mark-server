@@ -80,11 +80,6 @@ export function FileList({
           transition: all 0.2s ease;
         }
 
-        .file-card:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        }
-
         .file-icon {
           font-size: 1.5rem;
         }
@@ -121,10 +116,6 @@ export function FileList({
         .files-scroll::-webkit-scrollbar-thumb {
           background: #ccc;
           border-radius: 4px;
-        }
-
-        .files-scroll::-webkit-scrollbar-thumb:hover {
-          background: #999;
         }
       `}</style>
     </div>

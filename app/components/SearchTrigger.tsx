@@ -33,10 +33,6 @@ export const SearchTrigger = React.memo(
             cursor: pointer;
             transition: all 0.2s ease;
           }
-          .search-trigger:hover {
-            background: #f5f5f5;
-            border-color: #ddd;
-          }
           :global(.search-icon) {
             width: 1.2em;
             height: 1.2em;

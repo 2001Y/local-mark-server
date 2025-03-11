@@ -39,9 +39,6 @@ export function MenuTrigger({ path, type = "file", node }: MenuTriggerProps) {
           justify-content: center;
           transition: background-color 0.2s ease;
         }
-        .menu-trigger:hover {
-          background-color: #e5e5e5;
-        }
       `}</style>
     </div>
   );
