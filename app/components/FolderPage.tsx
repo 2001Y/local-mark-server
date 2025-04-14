@@ -12,6 +12,7 @@ import { SearchTrigger } from "./SearchTrigger";
 import { DirectoryList } from "./DirectoryList";
 import { useRouter } from "next/navigation";
 import { DirectoryListDemo } from "./DirectoryListDemo";
+import { useMemoActions } from "../hooks/useMemoActions";
 
 interface DirectoryContent {
   folders: FileNode[];
@@ -167,6 +168,7 @@ export function FolderPage({
   const defaultPath = process.env.NEXT_PUBLIC_DEFAULT_MD_PATH || "/content";
   const isRoot = folderPath === defaultPath || folderPath === "/";
   const currentPath = folderPath;
+  const { navigateToQuickmemo } = useMemoActions();
 
   // folderPathからセグメントを取得
   const segments = useMemo(() => {
@@ -197,8 +199,8 @@ export function FolderPage({
   }, [currentPath]);
 
   const handleQuickmemoClick = useCallback(() => {
-    router.push("/quickmemo");
-  }, [router]);
+    navigateToQuickmemo();
+  }, [navigateToQuickmemo]);
 
   return (
     <div className="folder-container flex-1 overflow-auto">

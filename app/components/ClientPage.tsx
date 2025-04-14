@@ -8,6 +8,7 @@ import { FolderPage } from "./FolderPage";
 import path from "path";
 import { FileNode } from "../types/file";
 import { useTree } from "@/app/context/TreeContext";
+import { useMemoActions } from "@/app/hooks/useMemoActions";
 
 interface NewFileEvent extends CustomEvent {
   detail: { type: string };
@@ -17,18 +18,6 @@ interface CreateFolderEvent extends CustomEvent {
   detail: { parentPath: string };
 }
 
-const generateUniqueFileName = () => {
-  const now = new Date();
-  const date = now.toISOString().split("T")[0]; // YYYY-MM-DD
-  const time = now.toTimeString().split(" ")[0]; // HH:MM:SS
-  const [hours, minutes, seconds] = time.split(":");
-
-  // 同じ名前のファイルが存在する場合のために連番を用意
-  // 実際の連番の処理はサーバーサイドで行う
-  return `${date}_${hours}_${minutes}`; // 基本形式
-  // 必要に応じて秒と連番が追加される: ${date}_${hours}_${minutes}_${seconds}_1
-};
-
 interface ClientPageProps {
   initialTree: FileNode[];
   updateTree: () => Promise<FileNode[]>;
@@ -37,70 +26,14 @@ interface ClientPageProps {
 export function ClientPage({ initialTree, updateTree }: ClientPageProps) {
   const router = useRouter();
   const { currentPath, setCurrentPath } = useTree();
-
-  const handleNewFile = useCallback(
-    async (initialContent?: string, askName: boolean = false) => {
-      try {
-        let fileName = generateUniqueFileName();
-
-        if (askName) {
-          const defaultFileName = fileName;
-          const userFileName = window.prompt(
-            "ファイル名を入力してください（.mdは自動で付加されます）",
-            defaultFileName
-          );
-          if (userFileName === null) return;
-          fileName = userFileName.trim() || defaultFileName;
-        }
-
-        const newPath = `${process.env.NEXT_PUBLIC_DEFAULT_MD_PATH}/${fileName}.md`;
-
-        const result = await createFile(
-          process.env.NEXT_PUBLIC_DEFAULT_MD_PATH!,
-          fileName
-        );
-        if (!result.success) {
-          toast.error(result.error || "ファイルの作成に失敗しました");
-          return;
-        }
-
-        if (initialContent) {
-          const saveResult = await saveFile(newPath, initialContent);
-          if (!saveResult.success) {
-            toast.error(saveResult.error || "ファイルの保存に失敗しました");
-            return;
-          }
-          localStorage.removeItem("unsaved_content");
-        }
-
-        window.dispatchEvent(new CustomEvent("createFile"));
-
-        // パスの先頭のスラッシュを削除
-        const cleanPath = newPath.replace(/^\/+/, "");
-        // パスをエンコード
-        const encodedPath = cleanPath
-          .split("/")
-          .map((segment) => encodeURIComponent(segment))
-          .join("/");
-
-        setCurrentPath(newPath);
-        router.push(`/${encodedPath}`);
-
-        toast.success("新規ファイルを作成しました");
-      } catch (error) {
-        console.error("Error creating new file:", error);
-        toast.error("ファイルの作成に失敗しました");
-      }
-    },
-    [router, setCurrentPath]
-  );
+  const { createNewMemo } = useMemoActions();
 
   // イベントリスナーの設定
   useEffect(() => {
     const handlers = {
       newFile: (event: NewFileEvent) => {
         console.log("[ClientPage] New file event:", event.detail.type);
-        handleNewFile();
+        createNewMemo({ askForFileName: false });
       },
       createFolder: async (event: CreateFolderEvent) => {
         const { parentPath } = event.detail;
@@ -151,7 +84,7 @@ export function ClientPage({ initialTree, updateTree }: ClientPageProps) {
         window.removeEventListener(event, handler as EventListener);
       });
     };
-  }, [handleNewFile, router, setCurrentPath]);
+  }, [createNewMemo, router, setCurrentPath]);
 
   return (
     <div className="container">
